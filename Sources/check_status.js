@@ -74,9 +74,6 @@ const checkVersion = async (app, gist) => {
   await updateGist(app);
 };
 const generateMessage = (currentDay, phased_release_state, status) => {
-  if (phased_release_state == "NOT_EXIST") {
-    return "핫픽스 배포가 완료되었습니다."
-  }
   if (status == "Prepare for submission") {
     return "제출 준비 중입니다."
   }
@@ -130,6 +127,9 @@ const generateMessage = (currentDay, phased_release_state, status) => {
   }
   if (phased_release_state != "ACTIVE") {
     return "점진적 배포 진행중이 아닙니다."
+  }
+  if (phased_release_state == "NOT_EXIST") {
+    return "배포가 완료되었습니다."
   }
   if (currentDay == 1) {
     return "점진적 배포가 1%로 진행 중입니다."
