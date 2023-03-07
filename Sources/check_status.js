@@ -55,7 +55,7 @@ const checkVersion = async (app, gist) => {
   var generated_message = generateMessage(currentDay, phased_release_state, app.status)
   app["generated_message"] = "<!subteam^S01DBJMNK4P> <!subteam^S03TPMY9EKH> 애플 심사 상태: " + generated_message
 
-  if (!app.appID || !isEqualPhasesState || app.status != gist.status || (!isEqualPhasesDay && phased_release_state == "ACTIVE")) {
+  if (!app.appID || !isEqualPhasesState || app.status != gist.status || (!isEqualPhasesDay && phased_release_state == "ACTIVE" && app.status == "Ready for sale")) {
     console.log("[*] status is different");
 
     var submission_start_date = gist.submission_start_date
