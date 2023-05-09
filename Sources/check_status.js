@@ -120,7 +120,7 @@ const generateMessage = (currentDay, phased_release_state, status) => {
     return "앱이 판매 준비중이 아닙니다."
   }
   if (phased_release_state == "COMPLETE") {
-    return "점진적 배포가 완료되었습니다."
+    return "점진적 배포가 완료되었습니다. (배포 진행율 100%)"
   }
   if (phased_release_state == "PAUSED") {
      return "점진적 배포가 중단되었습니다."
