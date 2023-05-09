@@ -54,6 +54,11 @@ function slackAttachment(appInfo, submissionStartDate) {
         title: i18n.__("Status"),
         value: i18n.__(appInfo.status),
         short: true
+      },
+      {
+        title: "점진적 배포란?",
+        value: "https://www.notion.so/ably2/7b0bc17915dc40b6baa84824147bd13d?pvs=4",
+        short: true
       }
     ],
     footer: "appstore-status-bot",
