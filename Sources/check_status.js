@@ -129,7 +129,7 @@ const generateMessage = (currentDay, phased_release_state, status) => {
     return "점진적 배포 진행중이 아닙니다."
   }
   if (phased_release_state == "NOT_EXIST") {
-    return "배포가 완료되었습니다."
+    return "배포가 완료되었습니다. (배포 진행율 100%)"
   }
   if (currentDay == 1) {
     return "점진적 배포가 1%로 진행 중입니다."
