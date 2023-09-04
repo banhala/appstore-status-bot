@@ -1,3 +1,5 @@
+update date: 
+
 <p align="center"><img src="./.github/images/og.png" width="70%"></p> 
 
 ![Fetch Appstore Info](https://github.com/techinpark/appstore-status-bot/workflows/Fetch%20Appstore%20Info/badge.svg)
