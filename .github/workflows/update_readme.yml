@@ -11,7 +11,7 @@ jobs:
     steps:
     - uses: actions/checkout@v2
     - name: Update Months
-      run: python .github/scripts/update_readme.py
+      run: python .github/update_readme.py
     - name: Commit and push
       run: |
         git config --local user.email "action@github.com"
