@@ -1,11 +1,13 @@
-const moment = require("moment");
 const path = require("path");
-const { IncomingWebhook } = require("@slack/webhook");
+const { WebClient } = require("@slack/web-api");
 const { I18n } = require("i18n");
 
 const webhookURL = process.env.SLACK_WEBHOOK;
+const token = process.env.SLACK_WEB_CLIENT_API_KEY;
 const language = process.env.LANGUAGE;
+const CHANNEL_Q = process.env.CHANNEL_Q;
 const i18n = new I18n();
+const slack_web_client = new WebClient(token);
 
 i18n.configure({
   locales: ['en', 'ko', 'ja'],
@@ -14,29 +16,37 @@ i18n.configure({
 
 i18n.setLocale(language);
 
-function post(appInfo, submissionStartDate) {
+async function post(appInfo, change_log) {
   console.log("[*] slack post");
-  const status = i18n.__(appInfo.status);
-  const message = i18n.__("Message", { appname: appInfo.name, status: status });
-  const attachment = slackAttachment(appInfo, submissionStartDate);
+  const message = appInfo.generated_message;
+  const attachment = slackAttachment(appInfo);
 
-  const params = {
-    attachments: [attachment],
-    as_user: "true",
+  try {
+    const threadTs = await client_message(message, attachment);
+    if (change_log && change_log.ios_change_log) {
+      await client_message(change_log.ios_change_log, null, threadTs);
+    }
+  } catch(error) {
+    console.error("Error in posting message: ", error);
+  }
+}
+
+async function client_message(message, attachment, threadTs) {
+  const payload = {
+    channel: CHANNEL_Q,
+    text: message
   };
-
-  hook(message, attachment);
+  if (attachment) {
+    payload.attachments = [attachment]
+  }
+  if (threadTs) {
+    payload.thread_ts = threadTs;
+  }
+  const response = await slack_web_client.chat.postMessage(payload);
+  return response.ts;
 }
 
-async function hook(message, attachment) {
-  const webhook = new IncomingWebhook(webhookURL, {});
-  await webhook.send({
-    text: message,
-    attachments: [attachment],
-  });
-}
-
-function slackAttachment(appInfo, submissionStartDate) {
+function slackAttachment(appInfo) {
   const attachment = {
     fallback: `The status of your app ${appInfo.name} has been changed to ${appInfo.status}`,
     color: colorForStatus(appInfo.status),
@@ -48,17 +58,12 @@ function slackAttachment(appInfo, submissionStartDate) {
       {
         title: i18n.__("Version"),
         value: appInfo.version,
-        short: true,
+        short: true
       },
       {
         title: i18n.__("Status"),
         value: i18n.__(appInfo.status),
-        short: true,
-      },
-      {
-        title: i18n.__("Phase percentage"),
-        value: appInfo.phase_percentage,
-        short: true,
+        short: true
       }
     ],
     footer: "appstore-status-bot",
@@ -66,20 +71,6 @@ function slackAttachment(appInfo, submissionStartDate) {
       "https://icons-for-free.com/iconfiles/png/512/app+store+apple+apps+game+games+store+icon-1320085881005897327.png",
     ts: new Date().getTime() / 1000,
   };
-
-  // Set elapsed time since "Waiting For Review" start
-  if (
-    submissionStartDate &&
-    appInfo.status != "Prepare for Submission" &&
-    appInfo.status != "Waiting For Review"
-  ) {
-    const elapsedHours = moment().diff(moment(submissionStartDate), "hours");
-    attachment["fields"].push({
-      title: i18n.__("Elapsed Time"),
-      value: `${elapsedHours} hours`,
-      short: true,
-    });
-  }
   return attachment;
 }
 

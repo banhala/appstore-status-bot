@@ -3,7 +3,7 @@ name: Fetch Appstore Info
 on:
   workflow_dispatch:
   schedule:
-    - cron: "0/15 * * * *"
+    - cron: "0/5 * * * *"
 
 jobs:
   build:
@@ -30,4 +30,9 @@ jobs:
           SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GIST_ID: ${{ secrets.GIST_ID }}
+          ABLY_CHANGE_LOG_GIST_ID: ${{ secrets.ABLY_CHANGE_LOG_GIST_ID }}
+          ABLY_APP_UPDATE_CHANNEL_ID: ${{ secrets.ABLY_APP_UPDATE_CHANNEL_ID }}
+          SLACK_WEB_CLIENT_API_KEY: ${{ secrets.SLACK_WEB_CLIENT_API_KEY }}
+          CHANNEL_Q: ${{ secrets.CHANNEL_Q }}
+          GROUP_ID_P: ${{ secrets.GROUP_ID_P }}
           LANGUAGE: "ko"
