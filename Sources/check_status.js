@@ -5,7 +5,9 @@ const request = require("request-promise-native");
 const env = Object.create(process.env);
 const octokit = new Octokit({ auth: `token ${process.env.GH_TOKEN}` });
 const ABLY_CHANGE_LOG_GIST_ID = process.env.ABLY_CHANGE_LOG_GIST_ID;
-const O_ID = process.env.GROUP_ID_P
+const O_ID = process.env.GROUP_ID_P;
+const CHANNEL_R = process.env.CHANNEL_R;
+const CHANNEL_Q = process.env.CHANNEL_Q;
 
 const main = async () => {
   var existGist = await getGist(process.env.GIST_ID);
@@ -63,8 +65,7 @@ const checkVersion = async (app, gist) => {
     }
     const change_log = await getGist(ABLY_CHANGE_LOG_GIST_ID);
     const parsed_change_log = JSON.parse(change_log);
-    slack.post(app, parsed_change_log);
-
+    slack.post(CHANNEL_R, app, parsed_change_log);
     if (app.status == "Waiting for review") {
       app["submission_start_date"] = new Date();
     }

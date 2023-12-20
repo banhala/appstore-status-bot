@@ -35,4 +35,5 @@ jobs:
           SLACK_WEB_CLIENT_API_KEY: ${{ secrets.SLACK_WEB_CLIENT_API_KEY }}
           CHANNEL_Q: ${{ secrets.CHANNEL_Q }}
           GROUP_ID_P: ${{ secrets.GROUP_ID_P }}
+          CHANNEL_R: ${{ secrets.CHANNEL_R }}
           LANGUAGE: "ko"

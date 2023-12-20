@@ -2,10 +2,8 @@ const path = require("path");
 const { WebClient } = require("@slack/web-api");
 const { I18n } = require("i18n");
 
-const webhookURL = process.env.SLACK_WEBHOOK;
 const token = process.env.SLACK_WEB_CLIENT_API_KEY;
 const language = process.env.LANGUAGE;
-const CHANNEL_Q = process.env.CHANNEL_Q;
 const i18n = new I18n();
 const slack_web_client = new WebClient(token);
 
@@ -16,24 +14,24 @@ i18n.configure({
 
 i18n.setLocale(language);
 
-async function post(appInfo, change_log) {
+async function post(channel, appInfo, change_log) {
   console.log("[*] slack post");
   const message = appInfo.generated_message;
   const attachment = slackAttachment(appInfo);
 
   try {
-    const threadTs = await client_message(message, attachment);
+    const threadTs = await client_message(channel, message, attachment);
     if (change_log && change_log.ios_change_log) {
-      await client_message(change_log.ios_change_log, null, threadTs);
+      await client_message(channel, change_log.ios_change_log, null, threadTs);
     }
   } catch(error) {
     console.error("Error in posting message: ", error);
   }
 }
 
-async function client_message(message, attachment, threadTs) {
+async function client_message(channel, message, attachment, threadTs) {
   const payload = {
-    channel: CHANNEL_Q,
+    channel: channel,
     text: message
   };
   if (attachment) {
