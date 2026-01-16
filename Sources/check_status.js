@@ -36,30 +36,46 @@ const checkVersion = async (app, gist) => {
   app["submission_start_date"] = gist.submission_start_date;
 
   if (!app.app_store_version_phased_release) {
-    var currentDay = 0
-    var phased_release_state = "NOT_EXIST"
+    var currentDay = 0;
+    var phased_release_state = "NOT_EXIST";
   } else {
-    var currentDay = app.app_store_version_phased_release.current_day_number
-    var phased_release_state = app.app_store_version_phased_release.phased_release_state
+    var currentDay = app.app_store_version_phased_release.current_day_number;
+    var phased_release_state =
+      app.app_store_version_phased_release.phased_release_state;
   }
 
   if (!gist.app_store_version_phased_release) {
-    var gist_currentDay = 0
-    var gist_phased_release_state = "NOT_EXIST"
+    var gist_currentDay = 0;
+    var gist_phased_release_state = "NOT_EXIST";
   } else {
-    var gist_currentDay = gist.app_store_version_phased_release.current_day_number
-    var gist_phased_release_state = gist.app_store_version_phased_release.phased_release_state
+    var gist_currentDay =
+      gist.app_store_version_phased_release.current_day_number;
+    var gist_phased_release_state =
+      gist.app_store_version_phased_release.phased_release_state;
   }
-  
-  var isEqualPhasesState = phased_release_state == gist_phased_release_state
-  var isEqualPhasesDay = currentDay == gist_currentDay
-  var generated_message = generateMessage(currentDay, phased_release_state, app.status)
-  app["generated_message"] = `<!subteam^S01DBJMNK4P> <!subteam^S03TPMY9EKH> <!subteam^${O_ID}> 애플 심사 상태: ` + generated_message
 
-  if (!app.appID || !isEqualPhasesState || app.status != gist.status || (!isEqualPhasesDay && phased_release_state == "ACTIVE" && app.status == "Ready for sale")) {
+  var isEqualPhasesState = phased_release_state == gist_phased_release_state;
+  var isEqualPhasesDay = currentDay == gist_currentDay;
+  var generated_message = generateMessage(
+    currentDay,
+    phased_release_state,
+    app.status
+  );
+  app["generated_message"] =
+    `<!subteam^S01DBJMNK4P> <!subteam^S09PR1FJTJP> <!subteam^${O_ID}> 애플 심사 상태: ` +
+    generated_message;
+
+  if (
+    !app.appID ||
+    !isEqualPhasesState ||
+    app.status != gist.status ||
+    (!isEqualPhasesDay &&
+      phased_release_state == "ACTIVE" &&
+      app.status == "Ready for sale")
+  ) {
     console.log("[*] status is different");
 
-    var submission_start_date = gist.submission_start_date
+    var submission_start_date = gist.submission_start_date;
     if (!submission_start_date) {
       submission_start_date = new Date();
     }
@@ -77,124 +93,124 @@ const checkVersion = async (app, gist) => {
 };
 const generateMessage = (currentDay, phased_release_state, status) => {
   if (status == "Prepare for submission") {
-    return "제출 준비 중입니다."
+    return "제출 준비 중입니다.";
   }
   if (status == "Ready for review") {
-    return "심사 준비됨으로 상태가 변경되었습니다."
+    return "심사 준비됨으로 상태가 변경되었습니다.";
   }
   if (status == "Waiting for review") {
-    return "심사 대기 중입니다."
+    return "심사 대기 중입니다.";
   }
   if (status == "In review") {
-    return "심사 중입니다."
+    return "심사 중입니다.";
   }
   if (status == "Pending contract") {
-    return "대기 중인 계약입니다."
+    return "대기 중인 계약입니다.";
   }
   if (status == "Waiting for export compliance") {
-    return "수출 규정 관련 문서 승인 대기중입니다."
+    return "수출 규정 관련 문서 승인 대기중입니다.";
   }
   if (status == "Pending developer release") {
-    return "개발자 출시 대기 중입니다."
+    return "개발자 출시 대기 중입니다.";
   }
   if (status == "Processing for app store") {
-    return "App Store 판매 준비중입니다."
+    return "App Store 판매 준비중입니다.";
   }
   if (status == "Pending apple release") {
-    return "앱 승인 대기 중입니다."
+    return "앱 승인 대기 중입니다.";
   }
   if (status == "Rejected") {
-    return "앱 승인이 거부되었습니다."
+    return "앱 승인이 거부되었습니다.";
   }
   if (status == "Metadata rejected") {
-    return "메타데이터가 거부되었습니다."
+    return "메타데이터가 거부되었습니다.";
   }
   if (status == "Removed from sale") {
-    return "판매가 중단되었습니다."
+    return "판매가 중단되었습니다.";
   }
   if (status == "Developer rejected") {
-    return "개발자가 취소했습니다."
+    return "개발자가 취소했습니다.";
   }
   if (status == "Developer removed from sale") {
-    return "개발자가 판매를 중단했습니다."
+    return "개발자가 판매를 중단했습니다.";
   }
   if (status == "Invalid binary") {
-    return "유효하지 않은 바이너리로 인해 거절되었습니다."
+    return "유효하지 않은 바이너리로 인해 거절되었습니다.";
   }
   if (status != "Ready for sale") {
-    return "점진적 배포가 완료되었습니다. (배포 진행율 100%)"
+    return "점진적 배포가 완료되었습니다. (배포 진행율 100%)";
   }
   if (phased_release_state == "COMPLETE") {
-    return "점진적 배포가 완료되었습니다. (배포 진행율 100%)"
+    return "점진적 배포가 완료되었습니다. (배포 진행율 100%)";
   }
   if (phased_release_state == "PAUSED") {
-     return "점진적 배포가 중단되었습니다."
+    return "점진적 배포가 중단되었습니다.";
   }
   if (phased_release_state != "ACTIVE") {
-    return "배포가 완료되었습니다. (100% 배포)."
+    return "배포가 완료되었습니다. (100% 배포).";
   }
-  if (phased_release_state == "NOT_EXIST" || !(phased_release_state)) {
-    return "배포가 완료되었습니다. (배포 진행율 100%)"
+  if (phased_release_state == "NOT_EXIST" || !phased_release_state) {
+    return "배포가 완료되었습니다. (배포 진행율 100%)";
   }
   if (currentDay == 1) {
-    return "점진적 배포가 1%로 진행 중입니다."
+    return "점진적 배포가 1%로 진행 중입니다.";
   }
   if (currentDay == 2) {
-    return "점진적 배포가 2%로 진행 중입니다."
+    return "점진적 배포가 2%로 진행 중입니다.";
   }
   if (currentDay == 3) {
-    return "점진적 배포가 5%로 진행 중입니다."
+    return "점진적 배포가 5%로 진행 중입니다.";
   }
   if (currentDay == 4) {
-    return "점진적 배포가 10%로 진행 중입니다."
+    return "점진적 배포가 10%로 진행 중입니다.";
   }
   if (currentDay == 5) {
-    return "점진적 배포가 20%로 진행 중입니다."
+    return "점진적 배포가 20%로 진행 중입니다.";
   }
   if (currentDay == 6) {
-    return "점진적 배포가 50%로 진행 중입니다."
+    return "점진적 배포가 50%로 진행 중입니다.";
   }
   if (currentDay == 7) {
-    return "점진적 배포가 100%로 진행 중입니다."
+    return "점진적 배포가 100%로 진행 중입니다.";
   }
-  return "점진적 배포가 완료되었습니다. (배포 진행율 100%)"
+  return "점진적 배포가 완료되었습니다. (배포 진행율 100%)";
 };
 
 const calculatePercentage = (currentDay, phased_release_state, status) => {
   if (status != "Ready for sale") {
-    return "Before Deployment"
+    return "Before Deployment";
   }
   if (phased_release_state == "COMPLETE") {
-    return "Gradual deployment completed"
+    return "Gradual deployment completed";
   }
   if (phased_release_state == "PAUSED") {
-     return "Progressive deployment disruption"
+    return "Progressive deployment disruption";
   }
   if (phased_release_state != "ACTIVE") {
-    return "Progressive deployment not in progress"
+    return "Progressive deployment not in progress";
   }
   if (currentDay == 1) {
-    return "1%"
+    return "1%";
   }
   if (currentDay == 2) {
-    return "2%"
+    return "2%";
   }
   if (currentDay == 3) {
-    return "5%"
+    return "5%";
   }
   if (currentDay == 4) {
-    return "10%"
+    return "10%";
   }
   if (currentDay == 5) {
-    return "20%"
+    return "20%";
   }
   if (currentDay == 6) {
-    return "50%"
+    return "50%";
   }
   if (currentDay == 7) {
-    return "100%"
+    return "100%";
   }
-  return "Progressive deployment not in progress"
+  return "Progressive deployment not in progress";
 };
 
 const getGist = async (gist_id) => {
@@ -212,7 +228,7 @@ const getGist = async (gist_id) => {
     url: rawdataURL,
   };
 
-  return await request.get(options)
+  return await request.get(options);
 };
 
 const updateGist = async (content) => {
