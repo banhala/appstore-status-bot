@@ -15,6 +15,12 @@ export interface Env {
   mentionGroupIds: string[];
   /** true면 Slack 미발송 (조회/diff만) */
   dryRun: boolean;
+  /** github.event_name (repository_dispatch | schedule | workflow_dispatch). 기본 manual */
+  trigger: string;
+  /** dispatch payload의 대상 버전 */
+  windowVersion?: string;
+  /** dispatch payload의 release note (Slack thread 답글용) */
+  releaseNote?: string;
 }
 
 const required = (name: string): string => {
@@ -57,5 +63,8 @@ export const loadEnv = (): Env => {
     slackChannel: required('CHANNEL_R'),
     mentionGroupIds: mentionRaw ? splitList(mentionRaw) : [],
     dryRun: optional('DRY_RUN') === 'true',
+    trigger: optional('TRIGGER') ?? 'manual',
+    windowVersion: optional('WINDOW_VERSION'),
+    releaseNote: optional('RELEASE_NOTE'),
   };
 };
