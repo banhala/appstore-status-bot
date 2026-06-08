@@ -40,7 +40,7 @@ export const createAscClient = (env: Env): AscClient => {
 
       const rateLimit = res.headers.get('X-Rate-Limit');
       if (rateLimit) {
-        console.log(`[asc] X-Rate-Limit: ${rateLimit}`);
+        console.log(`[ASC] 잔여 요청 한도: ${rateLimit}`);
       }
 
       if (!res.ok) {

@@ -1,0 +1,87 @@
+name: Poll App Store Status
+
+on:
+  repository_dispatch:
+    types: [appstore-review-window] # ably-react-native 릴리즈 워크플로우의 enforce_phased_release 직후 발사
+  schedule:
+    - cron: '*/10 * * * *' # 10분 하트비트 (윈도우 열렸을 때만 실제 폴링)
+  workflow_dispatch: # 수동 윈도우 오픈/폴링
+
+concurrency:
+  group: appstore-poll
+  cancel-in-progress: false # dispatch/cron 겹침 시 직렬화(push 레이스 방지)
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write # state/status.json 커밋·푸시
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # push 충돌 시 rebase 재시도 대비
+
+      # schedule인데 윈도우 닫힘 → Node 셋업 전 종료 (jq는 ubuntu 사전설치)
+      - name: 윈도우 확인
+        id: gate
+        run: |
+          if [ "${{ github.event_name }}" = "schedule" ]; then
+            open=$(jq -r '.window.open // false' state/status.json 2>/dev/null || echo false)
+            if [ "$open" != "true" ]; then
+              echo "활성 윈도우 없음 — 하트비트 종료(Node 셋업·폴링 생략)"
+              echo "proceed=false" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
+          fi
+          echo "proceed=true" >> "$GITHUB_OUTPUT"
+
+      - name: Node 셋업
+        if: steps.gate.outputs.proceed == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: 의존성 설치
+        if: steps.gate.outputs.proceed == 'true'
+        run: npm ci
+
+      - name: git 사용자 설정
+        if: steps.gate.outputs.proceed == 'true'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: 상태 폴링
+        if: steps.gate.outputs.proceed == 'true'
+        run: npm start
+        env:
+          # 트리거 입력 (event 데이터는 env로만 전달 — 인젝션 방지)
+          TRIGGER: ${{ github.event_name }}
+          WINDOW_VERSION: ${{ github.event.client_payload.version }}
+          RELEASE_NOTE: ${{ github.event.client_payload.releaseNote }}
+          # ASC / Slack 시크릿
+          KEY_ID: ${{ secrets.KEY_ID }}
+          ISSUER_ID: ${{ secrets.ISSUER_ID }}
+          PRIVATE_KEY: ${{ secrets.PRIVATE_KEY }}
+          BUNDLE_ID: ${{ secrets.BUNDLE_ID }}
+          SLACK_WEB_CLIENT_API_KEY: ${{ secrets.SLACK_WEB_CLIENT_API_KEY }}
+          CHANNEL_R: ${{ secrets.CHANNEL_R }}
+          # 구 봇 멘션 파리티: 고정 2개 + GROUP_ID_P(S02C40VF4HG)
+          MENTION_GROUP_IDS: S01DBJMNK4P,S09PR1FJTJP,${{ secrets.GROUP_ID_P }}
+          DRY_RUN: 'true' # 구 봇에서 완전 전환 시 false로 변경
+
+      - name: 실패 알림
+        if: failure()
+        env:
+          SLACK_TOKEN: ${{ secrets.SLACK_WEB_CLIENT_API_KEY }}
+          SLACK_CHANNEL: ${{ secrets.CHANNEL_R }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          payload=$(jq -n --arg ch "$SLACK_CHANNEL" \
+            --arg text "⚠️ appstore-status-bot 실행 실패: $RUN_URL" \
+            '{channel: $ch, text: $text}')
+          curl -sf -X POST https://slack.com/api/chat.postMessage \
+            -H "Authorization: Bearer $SLACK_TOKEN" \
+            -H "Content-Type: application/json; charset=utf-8" \
+            -d "$payload" || true

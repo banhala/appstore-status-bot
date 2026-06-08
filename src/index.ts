@@ -29,26 +29,37 @@ const main = async (): Promise<void> => {
       ...(env.windowVersion !== undefined ? { targetVersion: env.windowVersion } : {}),
       ...(env.releaseNote !== undefined ? { releaseNote: env.releaseNote } : {}),
     };
-    console.log(`[window] ${env.trigger}로 오픈`);
+    const versionPart = env.windowVersion !== undefined ? `, 버전 ${env.windowVersion}` : '';
+    console.log(`[윈도우] 오픈 — ${env.trigger}${versionPart}, ${window.hardExpiresAt}까지 추적`);
   }
 
   // 윈도우 닫힘 & opener 아님(=schedule 하트비트) → no-op
   if (!window.open) {
-    console.log('[window] 닫힘 — 건너뜀');
+    console.log('[종료] 추적 중인 릴리즈 없음 — App Store 조회 생략 (schedule 하트비트)');
     return;
   }
 
   // 하드 만료 → 닫고 종료
   if (nowIso > window.hardExpiresAt) {
-    console.log('[window] 만료 — 닫음');
+    console.log(`[윈도우] ${window.openedAt} 오픈분이 만료기한(${window.hardExpiresAt}) 초과 — 닫고 종료`);
     await saveState({ window: { ...window, open: false }, apps: state.apps, updatedAt: nowIso });
     return;
   }
 
   const client = createAscClient(env);
   const statuses = await fetchAppStatuses(client, env.bundleIds);
+  for (const status of statuses) {
+    const phasedPart =
+      status.phasedState === 'ACTIVE' ? ` (${status.phasedCurrentDay}일차)` : '';
+    console.log(
+      `[관측] ${status.name} ${status.version} — 심사 ${status.state}, 점진배포 ${status.phasedState}${phasedPart}`,
+    );
+  }
 
   const { changes, nextApps } = diffStatuses(statuses, state);
+  if (changes.length === 0) {
+    console.log('[판정] 직전 상태와 동일 — 알림 없음');
+  }
 
   const notifier = createSlackNotifier({
     token: env.slackToken,
@@ -59,13 +70,12 @@ const main = async (): Promise<void> => {
   for (const app of changes) {
     await notifier.notify(app, window.releaseNote);
   }
-  console.log(`[poll] 조회 ${statuses.length}건, 변화 알림 ${changes.length}건`);
 
   // 종료조건: 추적 중인 앱이 모두 phased COMPLETE → 릴리즈 사이클 종료
   const allComplete =
     statuses.length > 0 && statuses.every(status => status.phasedState === 'COMPLETE');
   if (allComplete) {
-    console.log('[window] 모든 앱 phased COMPLETE — 닫음');
+    console.log('[윈도우] 모든 앱 점진적 배포 완료(COMPLETE) — 추적 종료(윈도우 닫음)');
     window = { ...window, open: false };
   }
 
@@ -73,6 +83,6 @@ const main = async (): Promise<void> => {
 };
 
 main().catch((error: unknown) => {
-  console.error('[fatal]', error);
+  console.error('[오류] 봇 실행 실패:', error);
   process.exitCode = 1;
 });

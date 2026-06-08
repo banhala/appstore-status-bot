@@ -64,7 +64,7 @@ const fetchOne = async (
   const apps = await client.get<AppsResponse>('/v1/apps', { 'filter[bundleId]': bundleId });
   const app = apps.data[0];
   if (app === undefined) {
-    console.warn(`[asc] 앱을 찾지 못함: ${bundleId}`);
+    console.warn(`[ASC] 번들 ${bundleId}에 해당하는 앱 없음 — 건너뜀`);
     return undefined;
   }
   const name = asString(app.attributes?.['name']) ?? bundleId;
@@ -96,7 +96,7 @@ const fetchOne = async (
   // ⚠️ 알려진 한계: 핫픽스가 이전 버전 phased rollout 중에 진행되면 핫픽스(최신)만 추적.
   const primary = candidates[0];
   if (primary === undefined) {
-    console.warn(`[asc] 버전 정보 없음: ${bundleId}`);
+    console.warn(`[ASC] ${bundleId}: iOS App Store 버전이 하나도 없음 — 건너뜀`);
     return undefined;
   }
 

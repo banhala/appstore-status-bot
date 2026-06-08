@@ -21,7 +21,7 @@ export const loadState = async (path: string = STATE_PATH): Promise<StoredState>
   } catch (error) {
     const code = (error as NodeJS.ErrnoException).code;
     if (code !== 'ENOENT') {
-      console.warn(`[state] ${path} 로드 실패, 기본값 사용: ${String(error)}`);
+      console.warn(`[상태] ${path} 읽기 실패 — 기본 상태로 시작: ${String(error)}`);
     }
     return defaultState();
   }
@@ -35,15 +35,18 @@ const commitAndPush = async (path: string): Promise<void> => {
   await git(['add', path]);
   const { stdout } = await git(['status', '--porcelain', path]);
   if (stdout.trim() === '') {
+    console.log('[상태] 직전과 동일 — 커밋 생략');
     return;
   }
   await git(['commit', '-m', '상태 자동 갱신 [skip ci]']);
   try {
     await git(['push']);
   } catch {
+    console.warn('[상태] push 충돌 — rebase 후 재시도');
     await git(['pull', '--rebase']);
     await git(['push']);
   }
+  console.log('[상태] status.json 갱신본 push 완료');
 };
 
 export const saveState = async (

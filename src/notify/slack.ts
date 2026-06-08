@@ -72,12 +72,14 @@ export const createSlackNotifier = (params: SlackNotifierParams): SlackNotifier 
   const notify = async (app: AppStatus, releaseNote?: string): Promise<void> => {
     const text = buildHeadline(app, mentionGroupIds);
     if (dryRun) {
-      console.log(`[slack:dry-run] ${text}`);
+      console.log(`[알림:DRY_RUN] ${app.name} ${app.version} → ${app.state} (미발송) | ${text}`);
       return;
     }
     const threadTs = await post(text, [buildAttachment(app)]);
+    console.log(`[알림] ${app.name} ${app.version} → ${app.state} Slack 전송 완료`);
     if (releaseNote !== undefined && releaseNote !== '') {
       await post(releaseNote, undefined, threadTs);
+      console.log('[알림] release note를 thread 답글로 전송');
     }
   };
 
