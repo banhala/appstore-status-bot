@@ -16,12 +16,12 @@ const main = async (): Promise<void> => {
   const now = new Date();
   const nowIso = now.toISOString();
 
-  // repository_dispatch(App Store 제출) / workflow_dispatch(수동) → 윈도우 오픈
+  // repository_dispatch(App Store 버전 생성) / workflow_dispatch(수동) → 윈도우 오픈
   const isOpener = env.trigger === 'repository_dispatch' || env.trigger === 'workflow_dispatch';
 
-  let window: Window = state.window;
+  let reviewWindow: Window = state.window;
   if (isOpener) {
-    window = {
+    reviewWindow = {
       open: true,
       openedAt: nowIso,
       hardExpiresAt: new Date(now.getTime() + WINDOW_TTL_DAYS * DAY_MS).toISOString(),
@@ -30,19 +30,25 @@ const main = async (): Promise<void> => {
       ...(env.releaseNote !== undefined ? { releaseNote: env.releaseNote } : {}),
     };
     const versionPart = env.windowVersion !== undefined ? `, 버전 ${env.windowVersion}` : '';
-    console.log(`[윈도우] 오픈 — ${env.trigger}${versionPart}, ${window.hardExpiresAt}까지 추적`);
+    console.log(`[윈도우] 오픈 — ${env.trigger}${versionPart}, ${reviewWindow.hardExpiresAt}까지 추적`);
   }
 
   // 윈도우 닫힘 & opener 아님(=schedule 하트비트) → no-op
-  if (!window.open) {
+  if (!reviewWindow.open) {
     console.log('[종료] 추적 중인 릴리즈 없음 — App Store 조회 생략 (schedule 하트비트)');
     return;
   }
 
   // 하드 만료 → 닫고 종료
-  if (nowIso > window.hardExpiresAt) {
-    console.log(`[윈도우] ${window.openedAt} 오픈분이 만료기한(${window.hardExpiresAt}) 초과 — 닫고 종료`);
-    await saveState({ window: { ...window, open: false }, apps: state.apps, updatedAt: nowIso });
+  if (nowIso > reviewWindow.hardExpiresAt) {
+    console.log(
+      `[윈도우] ${reviewWindow.openedAt} 오픈분이 만료기한(${reviewWindow.hardExpiresAt}) 초과 — 닫고 종료`,
+    );
+    await saveState({
+      window: { ...reviewWindow, open: false },
+      apps: state.apps,
+      updatedAt: nowIso,
+    });
     return;
   }
 
@@ -68,7 +74,7 @@ const main = async (): Promise<void> => {
     dryRun: env.dryRun,
   });
   for (const app of changes) {
-    await notifier.notify(app, window.releaseNote);
+    await notifier.notify(app, reviewWindow.releaseNote);
   }
 
   // 종료조건: 추적 중인 앱이 모두 phased COMPLETE → 릴리즈 사이클 종료
@@ -76,10 +82,10 @@ const main = async (): Promise<void> => {
     statuses.length > 0 && statuses.every(status => status.phasedState === 'COMPLETE');
   if (allComplete) {
     console.log('[윈도우] 모든 앱 점진적 배포 완료(COMPLETE) — 추적 종료(윈도우 닫음)');
-    window = { ...window, open: false };
+    reviewWindow = { ...reviewWindow, open: false };
   }
 
-  await saveState({ window, apps: nextApps, updatedAt: nowIso });
+  await saveState({ window: reviewWindow, apps: nextApps, updatedAt: nowIso });
 };
 
 main().catch((error: unknown) => {

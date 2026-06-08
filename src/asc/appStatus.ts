@@ -83,13 +83,16 @@ const fetchOne = async (
   );
 
   const candidates = sorted
-    .map(version => ({
-      version,
-      state: normalizeState(
+    .map(version => {
+      const raw =
         asString(version.attributes?.['appStoreState']) ??
-          asString(version.attributes?.['appVersionState']),
-      ),
-    }))
+        asString(version.attributes?.['appVersionState']);
+      const state = normalizeState(raw);
+      if (raw !== undefined && state === undefined) {
+        console.warn(`[ASC] 알 수 없는 상태값 '${raw}' — 무시(정규화 맵 갱신 필요)`);
+      }
+      return { version, state };
+    })
     .filter((entry): entry is { version: Resource; state: VersionState } => entry.state !== undefined);
 
   // 최신 생성 버전을 report 대상으로 채택. 정상 릴리즈 플로우에선 in-flight 버전이 곧 최신.
