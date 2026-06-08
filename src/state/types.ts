@@ -61,8 +61,6 @@ export interface StoredAppEntry {
   state: VersionState;
   phasedState: PhasedState;
   phasedCurrentDay: number;
-  /** WAITING_FOR_REVIEW 진입 시각 (ISO) */
-  submissionStartDate?: string;
 }
 
 export interface StoredState {
