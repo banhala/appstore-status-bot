@@ -15,6 +15,7 @@ interface AppsResponse {
 interface VersionsResponse {
   data: Resource[];
   included?: Resource[];
+  meta?: { paging?: { total?: number } };
 }
 
 // appVersionState 신규 표기 → 내부(appStoreState) 표기 정규화
@@ -57,9 +58,36 @@ const buildIconUrl = (build: Resource | undefined): string => {
   return template.replace('{w}', '340').replace('{h}', '340').replace('{f}', 'png');
 };
 
+// DEBUG=true일 때 버전 목록을 슬림 요약(raw JSON 대신 필요한 필드만)
+const logVersionsSummary = (versions: VersionsResponse): void => {
+  const total = versions.meta?.paging?.total;
+  console.log(`[ASC:debug] 버전 ${versions.data.length}개 (총 ${total ?? '?'})`);
+  for (const version of versions.data) {
+    const attributes = version.attributes ?? {};
+    const state =
+      asString(attributes['appStoreState']) ?? asString(attributes['appVersionState']) ?? '?';
+    const phased = resolveIncluded(
+      versions.included,
+      version.relationships?.['appStoreVersionPhasedRelease']?.data,
+    )?.attributes;
+    const phasedPart = phased
+      ? `${asString(phased['phasedReleaseState']) ?? '?'}(${asNumber(phased['currentDayNumber']) ?? 0})`
+      : 'none';
+    const buildVersion = asString(
+      resolveIncluded(versions.included, version.relationships?.['build']?.data)?.attributes?.[
+        'version'
+      ],
+    );
+    console.log(
+      `  ${asString(attributes['versionString']) ?? '?'}  ${state}  phased=${phasedPart}  build=${buildVersion ?? '-'}`,
+    );
+  }
+};
+
 const fetchOne = async (
   client: AscClient,
   bundleId: string,
+  debug: boolean,
 ): Promise<AppStatus | undefined> => {
   const apps = await client.get<AppsResponse>('/v1/apps', { 'filter[bundleId]': bundleId });
   const app = apps.data[0];
@@ -68,12 +96,18 @@ const fetchOne = async (
     return undefined;
   }
   const name = asString(app.attributes?.['name']) ?? bundleId;
+  if (debug) {
+    console.log(`[ASC:debug] 앱 ${name} (${app.id})`);
+  }
 
   const versions = await client.get<VersionsResponse>(`/v1/apps/${app.id}/appStoreVersions`, {
     'filter[platform]': 'IOS',
     include: ['build', 'appStoreVersionPhasedRelease'],
     limit: '20',
   });
+  if (debug) {
+    logVersionsSummary(versions);
+  }
 
   // 최신 생성 순 정렬
   const sorted = [...versions.data].sort((a, b) =>
@@ -131,10 +165,11 @@ const fetchOne = async (
 export const fetchAppStatuses = async (
   client: AscClient,
   bundleIds: string[],
+  debug = false,
 ): Promise<AppStatus[]> => {
   const results: AppStatus[] = [];
   for (const bundleId of bundleIds) {
-    const status = await fetchOne(client, bundleId);
+    const status = await fetchOne(client, bundleId, debug);
     if (status !== undefined) {
       results.push(status);
     }

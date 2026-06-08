@@ -100,4 +100,27 @@ describe('fetchAppStatuses', () => {
     const [status] = await fetchAppStatuses(client(appsRes, versions), ['com.x']);
     expect(status?.iconUrl).toBe('');
   });
+
+  it('debug 모드에서 버전 슬림 요약을 출력한다', async () => {
+    const log = vi.spyOn(console, 'log').mockImplementation(() => {});
+    const versions = {
+      data: [
+        {
+          type: 'appStoreVersions',
+          id: 'v1',
+          attributes: { versionString: '2.0.0', createdDate: '2026-06-01T00:00:00Z', appStoreState: 'IN_REVIEW' },
+          relationships: { build: { data: { type: 'builds', id: 'b1' } } },
+        },
+      ],
+      included: [{ type: 'builds', id: 'b1', attributes: { version: '1157' } }],
+      meta: { paging: { total: 563 } },
+    };
+    await fetchAppStatuses(client(appsRes, versions), ['com.x'], true);
+    const lines = log.mock.calls.map(call => String(call[0]));
+    expect(lines.some(line => line.includes('버전 1개 (총 563)'))).toBe(true);
+    expect(
+      lines.some(line => line.includes('2.0.0') && line.includes('IN_REVIEW') && line.includes('build=1157')),
+    ).toBe(true);
+    log.mockRestore();
+  });
 });
