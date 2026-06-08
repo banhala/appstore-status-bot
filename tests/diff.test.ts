@@ -31,6 +31,7 @@ describe('diffStatuses', () => {
   it('최초 관측은 알림 없이 baseline만 시드한다', () => {
     const result = diffStatuses([app()], stored({}));
     expect(result.changes).toHaveLength(0);
+    expect(result.baselined).toEqual(['1']);
     expect(result.nextApps['1']).toMatchObject({ state: 'IN_REVIEW' });
   });
 
@@ -38,6 +39,7 @@ describe('diffStatuses', () => {
     const result = diffStatuses([app({ state: 'IN_REVIEW' })], stored({ '1': entry({ state: 'WAITING_FOR_REVIEW' }) }));
     expect(result.changes).toHaveLength(1);
     expect(result.changes[0]?.state).toBe('IN_REVIEW');
+    expect(result.baselined).toEqual([]);
   });
 
   it('직전과 동일하면 알림하지 않는다', () => {

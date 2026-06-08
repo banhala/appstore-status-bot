@@ -16,6 +16,9 @@ const main = async (): Promise<void> => {
   const now = new Date();
   const nowIso = now.toISOString();
 
+  // 상태 커밋/푸시는 CI(GitHub Actions)에서만. 로컬/dry 실행은 파일만 쓰고 부작용 없음
+  const commitState = process.env.GITHUB_ACTIONS === 'true';
+
   // repository_dispatch(App Store 버전 생성) / workflow_dispatch(수동) → 윈도우 오픈
   const isOpener = env.trigger === 'repository_dispatch' || env.trigger === 'workflow_dispatch';
 
@@ -44,11 +47,10 @@ const main = async (): Promise<void> => {
     console.log(
       `[윈도우] ${reviewWindow.openedAt} 오픈분이 만료기한(${reviewWindow.hardExpiresAt}) 초과 — 닫고 종료`,
     );
-    await saveState({
-      window: { ...reviewWindow, open: false },
-      apps: state.apps,
-      updatedAt: nowIso,
-    });
+    await saveState(
+      { window: { ...reviewWindow, open: false }, apps: state.apps, updatedAt: nowIso },
+      { commit: commitState },
+    );
     return;
   }
 
@@ -62,8 +64,11 @@ const main = async (): Promise<void> => {
     );
   }
 
-  const { changes, nextApps } = diffStatuses(statuses, state);
-  if (changes.length === 0) {
+  const { changes, baselined, nextApps } = diffStatuses(statuses, state);
+  if (baselined.length > 0) {
+    console.log(`[판정] 최초 관측 — baseline ${baselined.length}건 기록(알림 없음)`);
+  }
+  if (changes.length === 0 && baselined.length === 0) {
     console.log('[판정] 직전 상태와 동일 — 알림 없음');
   }
 
@@ -85,7 +90,7 @@ const main = async (): Promise<void> => {
     reviewWindow = { ...reviewWindow, open: false };
   }
 
-  await saveState({ window: reviewWindow, apps: nextApps, updatedAt: nowIso });
+  await saveState({ window: reviewWindow, apps: nextApps, updatedAt: nowIso }, { commit: commitState });
 };
 
 main().catch((error: unknown) => {

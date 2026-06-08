@@ -17,7 +17,7 @@ beforeEach(() => {
   for (const key of Object.keys(process.env)) {
     if (
       key in REQUIRED ||
-      ['MENTION_GROUP_IDS', 'GROUP_ID_P', 'DRY_RUN', 'TRIGGER', 'WINDOW_VERSION', 'RELEASE_NOTE'].includes(key)
+      ['MENTION_GROUP_IDS', 'GROUP_ID_P', 'DRY_RUN', 'DEBUG', 'TRIGGER', 'WINDOW_VERSION', 'RELEASE_NOTE'].includes(key)
     ) {
       delete process.env[key];
     }

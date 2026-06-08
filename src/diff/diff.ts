@@ -3,6 +3,8 @@ import type { AppStatus, StoredAppEntry, StoredState } from '../state/types.js';
 export interface DiffResult {
   /** 알림 대상 변화 */
   changes: AppStatus[];
+  /** 최초 관측되어 baseline만 시드된 appId (알림 없음) */
+  baselined: string[];
   /** 저장할 다음 상태(apps) */
   nextApps: Record<string, StoredAppEntry>;
 }
@@ -14,10 +16,15 @@ export interface DiffResult {
  */
 export const diffStatuses = (current: AppStatus[], stored: StoredState): DiffResult => {
   const changes: AppStatus[] = [];
+  const baselined: string[] = [];
   const nextApps: Record<string, StoredAppEntry> = { ...stored.apps };
 
   for (const app of current) {
     const prev = stored.apps[app.appId];
+
+    if (prev === undefined) {
+      baselined.push(app.appId);
+    }
 
     const notify =
       prev !== undefined &&
@@ -39,5 +46,5 @@ export const diffStatuses = (current: AppStatus[], stored: StoredState): DiffRes
     };
   }
 
-  return { changes, nextApps };
+  return { changes, baselined, nextApps };
 };

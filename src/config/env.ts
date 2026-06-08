@@ -15,6 +15,8 @@ export interface Env {
   mentionGroupIds: string[];
   /** true면 Slack 미발송 (조회/diff만) */
   dryRun: boolean;
+  /** true면 ASC raw 응답을 로그로 덤프 (디버그/검증용) */
+  debug: boolean;
   /** github.event_name (repository_dispatch | schedule | workflow_dispatch). 기본 manual */
   trigger: string;
   /** dispatch payload의 대상 버전 */
@@ -63,6 +65,7 @@ export const loadEnv = (): Env => {
     slackChannel: required('CHANNEL_R'),
     mentionGroupIds: mentionRaw ? splitList(mentionRaw) : [],
     dryRun: optional('DRY_RUN') === 'true',
+    debug: optional('DEBUG') === 'true',
     trigger: optional('TRIGGER') ?? 'manual',
     windowVersion: optional('WINDOW_VERSION'),
     releaseNote: optional('RELEASE_NOTE'),

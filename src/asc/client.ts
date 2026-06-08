@@ -48,7 +48,11 @@ export const createAscClient = (env: Env): AscClient => {
         throw new Error(`ASC ${res.status} ${res.statusText} (${path}): ${body}`);
       }
 
-      return (await res.json()) as T;
+      const data = (await res.json()) as T;
+      if (env.debug) {
+        console.log(`[ASC:debug] ${path}\n${JSON.stringify(data, null, 2)}`);
+      }
+      return data;
     } finally {
       clearTimeout(timer);
     }
