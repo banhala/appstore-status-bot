@@ -12,9 +12,6 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run"
   },
-  "dependencies": {
-    "@slack/web-api": "^7.8.0"
-  },
   "devDependencies": {
     "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
