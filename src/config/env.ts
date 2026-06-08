@@ -43,11 +43,16 @@ export const loadEnv = (): Env => {
   // 멘션 ID는 MENTION_GROUP_IDS(콤마 다중) 우선, 없으면 기존 GROUP_ID_P fallback
   const mentionRaw = optional('MENTION_GROUP_IDS') ?? optional('GROUP_ID_P');
 
+  const bundleIds = splitList(required('BUNDLE_ID'));
+  if (bundleIds.length === 0) {
+    throw new Error('BUNDLE_ID에 유효한 번들 ID가 없습니다');
+  }
+
   return {
     ascKeyId: required('KEY_ID'),
     ascIssuerId: required('ISSUER_ID'),
     ascPrivateKey: normalizePrivateKey(required('PRIVATE_KEY')),
-    bundleIds: splitList(required('BUNDLE_ID')),
+    bundleIds,
     slackToken: required('SLACK_WEB_CLIENT_API_KEY'),
     slackChannel: required('CHANNEL_R'),
     mentionGroupIds: mentionRaw ? splitList(mentionRaw) : [],
