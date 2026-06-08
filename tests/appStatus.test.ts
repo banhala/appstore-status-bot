@@ -117,7 +117,7 @@ describe('fetchAppStatuses', () => {
     };
     await fetchAppStatuses(client(appsRes, versions), ['com.x'], true);
     const lines = log.mock.calls.map(call => String(call[0]));
-    expect(lines.some(line => line.includes('버전 1개 (총 563)'))).toBe(true);
+    expect(lines.some(line => line.includes('버전 1개 조회 (총 563)'))).toBe(true);
     expect(
       lines.some(line => line.includes('2.0.0') && line.includes('IN_REVIEW') && line.includes('build=1157')),
     ).toBe(true);

@@ -58,11 +58,13 @@ const buildIconUrl = (build: Resource | undefined): string => {
   return template.replace('{w}', '340').replace('{h}', '340').replace('{f}', 'png');
 };
 
-// DEBUG=true일 때 버전 목록을 슬림 요약(raw JSON 대신 필요한 필드만)
+// DEBUG=true일 때 버전 목록을 슬림 요약(raw JSON 대신 필요한 필드만, 최신 N개만)
+const SUMMARY_LIMIT = 5;
 const logVersionsSummary = (versions: VersionsResponse): void => {
   const total = versions.meta?.paging?.total;
-  console.log(`[ASC:debug] 버전 ${versions.data.length}개 (총 ${total ?? '?'})`);
-  for (const version of versions.data) {
+  const shown = versions.data.slice(0, SUMMARY_LIMIT);
+  console.log(`[ASC:debug] 버전 ${versions.data.length}개 조회 (총 ${total ?? '?'}), 최신 ${shown.length}개:`);
+  for (const version of shown) {
     const attributes = version.attributes ?? {};
     const state =
       asString(attributes['appStoreState']) ?? asString(attributes['appVersionState']) ?? '?';
@@ -81,6 +83,10 @@ const logVersionsSummary = (versions: VersionsResponse): void => {
     console.log(
       `  ${asString(attributes['versionString']) ?? '?'}  ${state}  phased=${phasedPart}  build=${buildVersion ?? '-'}`,
     );
+  }
+  const omitted = versions.data.length - shown.length;
+  if (omitted > 0) {
+    console.log(`  …이하 ${omitted}개 생략`);
   }
 };
 
