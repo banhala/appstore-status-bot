@@ -7,7 +7,7 @@ App Store Connect의 **앱 심사·배포 상태 변화를 감지해 Slack으로
 
 ## 동작 방식
 
-트리거: App Store 버전 생성(enforce_phased_release) 직후 repository_dispatch / 10분 하트비트 cron / 수동 실행
+트리거: App Store 버전 생성(enforce_phased_release) 직후 repository_dispatch / 하트비트 cron(명목 5분, GitHub 스로틀로 실제 ~30-50분) / 수동 실행
 
 1. 추적 윈도우 확인 — dispatch·수동이면 윈도우 오픈(기본 14일), schedule인데 윈도우가 닫혀 있으면 즉시 종료(폴링 안 함)
 2. App Store Connect 조회 → 최신 버전의 심사 상태·점진적 배포 상태 정규화

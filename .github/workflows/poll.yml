@@ -4,7 +4,7 @@ on:
   repository_dispatch:
     types: [appstore-review-window] # ably-react-native 릴리즈 워크플로우의 enforce_phased_release 직후 발사
   schedule:
-    - cron: '*/10 * * * *' # 10분 하트비트 (윈도우 열렸을 때만 실제 폴링)
+    - cron: '*/5 * * * *' # 명목 5분 (GitHub 스로틀로 실제 ~30-50분, 윈도우 열렸을 때만 폴링)
   workflow_dispatch: # 수동 윈도우 오픈/폴링
 
 concurrency:
