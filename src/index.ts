@@ -55,7 +55,7 @@ const main = async (): Promise<void> => {
   }
 
   const client = createAscClient(env);
-  const statuses = await fetchAppStatuses(client, env.bundleIds, env.debug);
+  const statuses = await fetchAppStatuses(client, env.bundleIds, env.summary);
   for (const status of statuses) {
     const phasedPart =
       status.phasedState === 'ACTIVE' ? ` (${status.phasedCurrentDay}일차)` : '';

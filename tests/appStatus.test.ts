@@ -101,7 +101,7 @@ describe('fetchAppStatuses', () => {
     expect(status?.iconUrl).toBe('');
   });
 
-  it('debug 모드에서 버전 슬림 요약을 출력한다', async () => {
+  it('summary 모드에서 버전 슬림 요약을 출력한다', async () => {
     const log = vi.spyOn(console, 'log').mockImplementation(() => {});
     const versions = {
       data: [

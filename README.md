@@ -7,17 +7,13 @@ App Store Connect의 **앱 심사·배포 상태 변화를 감지해 Slack으로
 
 ## 동작 방식
 
-```
-[트리거] iOS 릴리즈 워크플로우의 App Store 버전 생성(enforce_phased_release) 직후
-         repository_dispatch  +  10분 하트비트 cron  +  수동 실행
-   ↓
-1. 추적 윈도우 확인 — dispatch/수동이면 윈도우 오픈(기본 14일), schedule인데 윈도우가
-   닫혀 있으면 즉시 종료(폴링 안 함)
+트리거: App Store 버전 생성(enforce_phased_release) 직후 repository_dispatch / 10분 하트비트 cron / 수동 실행
+
+1. 추적 윈도우 확인 — dispatch·수동이면 윈도우 오픈(기본 14일), schedule인데 윈도우가 닫혀 있으면 즉시 종료(폴링 안 함)
 2. App Store Connect 조회 → 최신 버전의 심사 상태·점진적 배포 상태 정규화
-3. 직전 상태(state/status.json)와 비교(diff) — 변화가 있을 때만 알림
+3. 직전 상태(`state/status.json`)와 비교(diff) — 변화가 있을 때만 알림
 4. Slack 전송 (심사 단계 / 점진적 배포 진행률)
 5. 상태 저장. 모든 앱이 점진적 배포 완료되면 윈도우 닫음
-```
 
 핵심은 **심사가 진행되는 구간에만 폴링**한다는 점입니다. 윈도우가 닫혀 있으면 10분 cron이
 즉시 종료하므로, 과거처럼 24시간 내내 도는 노이즈가 없습니다.
@@ -47,13 +43,13 @@ GitHub Actions Secrets에 등록합니다.
 | `CHANNEL_R` | 알림 채널 ID | ✅ |
 | `MENTION_GROUP_IDS` | 멘션할 subteam ID 목록(콤마). 없으면 `GROUP_ID_P` 사용 | 선택 |
 | `DRY_RUN` | `true`면 Slack 미발송(조회·판정만) | 선택 |
-| `DEBUG` | `true`면 ASC 응답을 슬림 요약으로 로그 출력 | 선택 |
+| `SUMMARY` | ASC 응답 로그. 기본 슬림 요약, `false`면 전체 raw 출력 | 선택 |
 
 > CI에서 상태 파일 커밋에 쓰는 `GITHUB_TOKEN`은 자동 제공됩니다(워크플로우 `contents: write`).
 
 ## 트리거 연동
 
-알림 대상은 **App Store 버전**이므로, RN/TestFlight 배포가 아니라 App Store 버전이 생성되는
+알림 대상은 **App Store 버전**이므로, TestFlight 배포가 아니라 App Store 버전이 생성되는
 시점(iOS 릴리즈 워크플로우의 `enforce_phased_release` 직후)에 이 레포로 `repository_dispatch`를
 보냅니다.
 
@@ -71,6 +67,11 @@ GitHub Actions Secrets에 등록합니다.
 
 `client_payload.releaseNote`를 함께 보내면 Slack 알림 thread에 release note가 답글로 붙습니다.
 
+> 위 예시는 템플릿입니다. 실제 연결하려면 ① `$APP_VERSION`을 `Version.xcconfig` 등에서 주입,
+> ② 이 레포에 `repository_dispatch` 권한(fine-grained PAT, `contents: write`)을 가진
+> `ASC_BOT_DISPATCH_TOKEN` 시크릿을 **발신 레포**에 추가해야 합니다.
+> `event_type`(`appstore-review-window`)은 `poll.yml`의 트리거와 일치합니다.
+
 ## 상태 저장
 
 직전 상태는 레포의 [`state/status.json`](./state/status.json)에 저장합니다(외부 저장소 없음).
@@ -81,12 +82,13 @@ GitHub Actions Secrets에 등록합니다.
 ```bash
 npm install
 
-# dry 실행 (Slack 미발송, ASC 응답 요약 출력)
-TRIGGER=workflow_dispatch DRY_RUN=true DEBUG=true \
+# dry 실행 (Slack 미발송, ASC 응답 슬림 요약 출력)
+TRIGGER=workflow_dispatch DRY_RUN=true \
 KEY_ID=... ISSUER_ID=... PRIVATE_KEY="$(cat AuthKey_XXXX.p8)" \
 BUNDLE_ID=com.example.app \
 SLACK_WEB_CLIENT_API_KEY=dummy CHANNEL_R=dummy \
 npm start
+# 전체 raw 응답을 보려면 SUMMARY=false 추가
 ```
 
 `TRIGGER=workflow_dispatch`가 있어야 윈도우가 열려 폴링합니다. `DRY_RUN=true`면 알림은

@@ -17,7 +17,7 @@ beforeEach(() => {
   for (const key of Object.keys(process.env)) {
     if (
       key in REQUIRED ||
-      ['MENTION_GROUP_IDS', 'GROUP_ID_P', 'DRY_RUN', 'DEBUG', 'TRIGGER', 'WINDOW_VERSION', 'RELEASE_NOTE'].includes(key)
+      ['MENTION_GROUP_IDS', 'GROUP_ID_P', 'DRY_RUN', 'SUMMARY', 'TRIGGER', 'WINDOW_VERSION', 'RELEASE_NOTE'].includes(key)
     ) {
       delete process.env[key];
     }
@@ -70,5 +70,11 @@ describe('loadEnv', () => {
     expect(loadEnv().trigger).toBe('manual');
     process.env.TRIGGER = 'schedule';
     expect(loadEnv().trigger).toBe('schedule');
+  });
+
+  it('SUMMARY 기본 true, "false"일 때만 false', () => {
+    expect(loadEnv().summary).toBe(true);
+    process.env.SUMMARY = 'false';
+    expect(loadEnv().summary).toBe(false);
   });
 });

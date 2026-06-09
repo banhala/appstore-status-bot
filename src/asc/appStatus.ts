@@ -58,12 +58,16 @@ const buildIconUrl = (build: Resource | undefined): string => {
   return template.replace('{w}', '340').replace('{h}', '340').replace('{f}', 'png');
 };
 
-// DEBUG=true일 때 버전 목록을 슬림 요약(raw JSON 대신 필요한 필드만, 최신 N개만)
+// 버전 목록 로그 — summary=true면 슬림 요약(최신 N개), false면 전체 raw
 const SUMMARY_LIMIT = 5;
-const logVersionsSummary = (versions: VersionsResponse): void => {
+const logVersions = (versions: VersionsResponse, summary: boolean): void => {
+  if (!summary) {
+    console.log(`[ASC] 버전 응답 raw\n${JSON.stringify(versions, null, 2)}`);
+    return;
+  }
   const total = versions.meta?.paging?.total;
   const shown = versions.data.slice(0, SUMMARY_LIMIT);
-  console.log(`[ASC:debug] 버전 ${versions.data.length}개 조회 (총 ${total ?? '?'}), 최신 ${shown.length}개:`);
+  console.log(`[ASC] 버전 ${versions.data.length}개 조회 (총 ${total ?? '?'}), 최신 ${shown.length}개:`);
   for (const version of shown) {
     const attributes = version.attributes ?? {};
     const state =
@@ -93,7 +97,7 @@ const logVersionsSummary = (versions: VersionsResponse): void => {
 const fetchOne = async (
   client: AscClient,
   bundleId: string,
-  debug: boolean,
+  summary: boolean,
 ): Promise<AppStatus | undefined> => {
   const apps = await client.get<AppsResponse>('/v1/apps', { 'filter[bundleId]': bundleId });
   const app = apps.data[0];
@@ -102,18 +106,14 @@ const fetchOne = async (
     return undefined;
   }
   const name = asString(app.attributes?.['name']) ?? bundleId;
-  if (debug) {
-    console.log(`[ASC:debug] 앱 ${name} (${app.id})`);
-  }
+  console.log(summary ? `[ASC] 앱 ${name} (${app.id})` : `[ASC] 앱 응답 raw\n${JSON.stringify(apps, null, 2)}`);
 
   const versions = await client.get<VersionsResponse>(`/v1/apps/${app.id}/appStoreVersions`, {
     'filter[platform]': 'IOS',
     include: ['build', 'appStoreVersionPhasedRelease'],
     limit: '20',
   });
-  if (debug) {
-    logVersionsSummary(versions);
-  }
+  logVersions(versions, summary);
 
   // 최신 생성 순 정렬
   const sorted = [...versions.data].sort((a, b) =>
@@ -171,11 +171,11 @@ const fetchOne = async (
 export const fetchAppStatuses = async (
   client: AscClient,
   bundleIds: string[],
-  debug = false,
+  summary = true,
 ): Promise<AppStatus[]> => {
   const results: AppStatus[] = [];
   for (const bundleId of bundleIds) {
-    const status = await fetchOne(client, bundleId, debug);
+    const status = await fetchOne(client, bundleId, summary);
     if (status !== undefined) {
       results.push(status);
     }
