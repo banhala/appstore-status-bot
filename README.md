@@ -1,72 +1,121 @@
-update date: (2026-06-01)
+# appstore-status-bot
 
-<p align="center"><img src="./.github/images/og.png" width="70%"></p> 
+> update date: 2026-06-09
 
-![Fetch Appstore Info](https://github.com/techinpark/appstore-status-bot/workflows/Fetch%20Appstore%20Info/badge.svg)
-![stars](https://img.shields.io/github/stars/techinpark/appstore-status-bot?color=yellow&style=social)
-![forks](https://img.shields.io/github/forks/techinpark/appstore-status-bot?style=social)
+App Store Connect의 **앱 심사·배포 상태 변화를 감지해 Slack으로 알리는 봇**입니다.
+순수 TypeScript로 App Store Connect REST API(JWT 인증)를 직접 호출하며, 런타임 의존성이 없습니다.
 
-[한국어로 보기](./README-KOREAN.md) 
+## 동작 방식
 
-# Introduce 🤷🏻‍♂️
-App Store Connect status bot is a simple bot script fetches your app info directly from App Store Connect and post changes in slack as a bot using `github-actions`, help of fastlane [Spaceship](https://github.com/fastlane/fastlane/tree/master/spaceship)
-For using this bot, Just `fork` this repository is Super Easy
+```
+[트리거] iOS 릴리즈 워크플로우의 App Store 버전 생성(enforce_phased_release) 직후
+         repository_dispatch  +  10분 하트비트 cron  +  수동 실행
+   ↓
+1. 추적 윈도우 확인 — dispatch/수동이면 윈도우 오픈(기본 14일), schedule인데 윈도우가
+   닫혀 있으면 즉시 종료(폴링 안 함)
+2. App Store Connect 조회 → 최신 버전의 심사 상태·점진적 배포 상태 정규화
+3. 직전 상태(state/status.json)와 비교(diff) — 변화가 있을 때만 알림
+4. Slack 전송 (심사 단계 / 점진적 배포 진행률)
+5. 상태 저장. 모든 앱이 점진적 배포 완료되면 윈도우 닫음
+```
 
+핵심은 **심사가 진행되는 구간에만 폴링**한다는 점입니다. 윈도우가 닫혀 있으면 10분 cron이
+즉시 종료하므로, 과거처럼 24시간 내내 도는 노이즈가 없습니다.
 
-# Features 🍯
-- 🚀  Fetch appstore connect info using apppstore connect API 
-- 📣  Share your application `status` information to your slack workspace 
-- 🌍 `Localization` support  (`english`, `korean`) 
+### 알림 메시지
 
-# Preview 🤖
+- **심사 단계**: 제출 준비 중 / 심사 대기 중 / 심사 중 / 거부됨 / 메타데이터 거부됨 등
+- **점진적 배포**: 1% → 2% → 5% → 10% → 20% → 50% → 100% 진행률, 완료/중단
+- 메시지 앞에 지정한 Slack subteam을 멘션하고, App Store Connect 카드(버전·상태·아이콘)를 첨부
+
+### 미리보기
+
 <img src="./.github/images/preview.png" width="70%">
 
 
-# Usage 👨🏻‍💻
+## 환경변수 / 시크릿
 
-## 1. Generating Tokens for API Requests 
-To get your Key ID, copy it from App Store Connect by logging in to [App Store Connect](https://appstoreconnect.apple.com/), then: 
+GitHub Actions Secrets에 등록합니다.
 
-1. Select Users and Access, then select the API Keys tab. 
-2. The key IDs appear in a column under the Active heading. Hover the cursor next to a key ID to display the Copy Key ID link. 
-3. Click Copy Key ID and paste it. 
-4. Click Copy Issuer ID and paste it.
-5. Download the newly created API Key file (.p8)
-  > ⚠️ This file cannot be downloaded again after the page has been refreshed
+| 키 | 설명 | 필수 |
+|---|---|---|
+| `KEY_ID` | App Store Connect API Key ID | ✅ |
+| `ISSUER_ID` | App Store Connect Issuer ID | ✅ |
+| `PRIVATE_KEY` | `.p8` 키 본문 (여러 줄 또는 `\n` 이스케이프 모두 지원) | ✅ |
+| `BUNDLE_ID` | 대상 번들 ID (콤마로 여러 개 지정 가능) | ✅ |
+| `SLACK_WEB_CLIENT_API_KEY` | Slack Bot 토큰 | ✅ |
+| `CHANNEL_R` | 알림 채널 ID | ✅ |
+| `MENTION_GROUP_IDS` | 멘션할 subteam ID 목록(콤마). 없으면 `GROUP_ID_P` 사용 | 선택 |
+| `DRY_RUN` | `true`면 Slack 미발송(조회·판정만) | 선택 |
+| `DEBUG` | `true`면 ASC 응답을 슬림 요약으로 로그 출력 | 선택 |
 
-6. Generate Slack Webhook token. 
-7. Fork this repository.
+> CI에서 상태 파일 커밋에 쓰는 `GITHUB_TOKEN`은 자동 제공됩니다(워크플로우 `contents: write`).
 
-## 3. Setting Secrets with your keys.
+## 트리거 연동
 
-- Go to `Settings` - `Secrets` - `Add a new secret`
+알림 대상은 **App Store 버전**이므로, RN/TestFlight 배포가 아니라 App Store 버전이 생성되는
+시점(iOS 릴리즈 워크플로우의 `enforce_phased_release` 직후)에 이 레포로 `repository_dispatch`를
+보냅니다.
 
-### Secret Values 
+```yaml
+# 발신 측 워크플로우 (예시)
+- name: appstore-status-bot 트리거
+  if: success()
+  run: |
+    curl -sf -X POST https://api.github.com/repos/banhala/appstore-status-bot/dispatches \
+      -H "Authorization: Bearer ${{ secrets.ASC_BOT_DISPATCH_TOKEN }}" \
+      -H "Accept: application/vnd.github+json" \
+      -d "$(jq -n --arg v "$APP_VERSION" \
+            '{event_type:"appstore-review-window", client_payload:{version:$v}}')"
+```
 
-> PRIVATE_KEY: Input raw data about your API Key file (.p8)  
-> KEY_ID : Input Appstore connect `key_id`  
-> ISSUER_ID : Input Appstore connect `issuer_id`   
-> BUNDLE_ID : Input your bundle_identifier of application you can input multiple bundle_id with comma   
-> SLACK_WEBHOOK :  Input your slack webhook url   
-> GH_TOKEN: Input your github token, (need `gists` and `repo` scope).   
-> GIST_ID: Input portion from your gist url:
-  - https://gist.github.com/techinpark/**9842e074b8ee46aef76fd0d493bae0ed**
+`client_payload.releaseNote`를 함께 보내면 Slack 알림 thread에 release note가 답글로 붙습니다.
 
+## 상태 저장
 
-## 4. Configure fetch timing or languages
+직전 상태는 레포의 [`state/status.json`](./state/status.json)에 저장합니다(외부 저장소 없음).
+변화가 있을 때만 CI에서 커밋·푸시하며, 로컬 실행 시에는 파일만 갱신하고 커밋하지 않습니다.
 
-- [fetch.yml](./.github/workflows/fetch.yml) 
+## 로컬 실행 / 디버그
 
-In `workflow` file, can change lanauges and fetch schedule default `schedule` is every 10 minutes. 
+```bash
+npm install
 
+# dry 실행 (Slack 미발송, ASC 응답 요약 출력)
+TRIGGER=workflow_dispatch DRY_RUN=true DEBUG=true \
+KEY_ID=... ISSUER_ID=... PRIVATE_KEY="$(cat AuthKey_XXXX.p8)" \
+BUNDLE_ID=com.example.app \
+SLACK_WEB_CLIENT_API_KEY=dummy CHANNEL_R=dummy \
+npm start
+```
 
-# References 🙇🏻‍♂️
+`TRIGGER=workflow_dispatch`가 있어야 윈도우가 열려 폴링합니다. `DRY_RUN=true`면 알림은
+콘솔에만 출력됩니다.
 
-- https://github.com/fastlane/fastlane/tree/master/spaceship
-- https://github.com/erikvillegas/itunes-connect-slack
-- https://github.com/rogerluan/app-store-connect-notifier
+## 개발
 
+```bash
+npm run typecheck   # 타입 체크 (tsc --noEmit)
+npm test            # 단위·통합 테스트 (vitest)
+```
 
-# Contribution 
-- Feel free to contribution for this project. 
-- Every `PR`, `Issues` is wellcome. 🤩
+## 구조
+
+```
+src/
+  index.ts          # 오케스트레이션 (윈도우 판정 → 조회 → diff → 알림 → 저장)
+  config/env.ts     # 환경변수 로딩·검증
+  asc/
+    jwt.ts          # ES256 JWT 발급
+    client.ts       # ASC REST 클라이언트
+    appStatus.ts    # 버전 조회 + 상태 정규화
+  diff/diff.ts      # 직전 상태 대비 변화 판정
+  notify/
+    messages.ts     # 상태 → 한국어 문구·라벨·색상
+    slack.ts        # Slack 전송
+  state/
+    types.ts        # 상태 타입·enum
+    store.ts        # status.json 로드/저장
+state/status.json   # 추적 상태 저장 파일
+.github/workflows/poll.yml
+```
