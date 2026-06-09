@@ -96,7 +96,8 @@ const phasedMessage = (app: AppStatus): string => {
     return '점진적 배포가 중단되었습니다.';
   }
   if (app.phasedState !== 'ACTIVE') {
-    return '배포가 완료되었습니다. (배포 진행율 100%)';
+    // INACTIVE(점진 배포 시작 전) 또는 NOT_EXIST(점진 배포 없이 출시) — 아직 100% 완료가 아님
+    return '판매가 시작되었습니다.';
   }
   const percent = PHASED_PERCENT[app.phasedCurrentDay];
   return percent !== undefined

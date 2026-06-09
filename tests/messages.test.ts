@@ -35,8 +35,11 @@ describe('messages', () => {
   it('READY_FOR_SALE + ACTIVE는 day별 진행률 문구로 대체된다', () => {
     const cases: Array<[number, string]> = [
       [1, '1%'],
+      [2, '2%'],
       [3, '5%'],
+      [4, '10%'],
       [5, '20%'],
+      [6, '50%'],
       [7, '100%'],
     ];
     for (const [day, percent] of cases) {
@@ -46,6 +49,15 @@ describe('messages', () => {
       );
       expect(text).toContain(`점진적 배포가 ${percent}로 진행 중입니다.`);
     }
+  });
+
+  it('READY_FOR_SALE인데 phased가 INACTIVE/NOT_EXIST면 "판매가 시작되었습니다"', () => {
+    expect(buildHeadline(app({ state: 'READY_FOR_SALE', phasedState: 'INACTIVE' }), [])).toBe(
+      '애플 심사 상태: 판매가 시작되었습니다.',
+    );
+    expect(buildHeadline(app({ state: 'READY_FOR_SALE', phasedState: 'NOT_EXIST' }), [])).toBe(
+      '애플 심사 상태: 판매가 시작되었습니다.',
+    );
   });
 
   it('phased COMPLETE/PAUSED는 전용 문구를 쓴다', () => {
