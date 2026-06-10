@@ -67,7 +67,7 @@ jobs:
           BUNDLE_ID: ${{ secrets.BUNDLE_ID }}
           SLACK_WEB_CLIENT_API_KEY: ${{ secrets.SLACK_WEB_CLIENT_API_KEY }}
           CHANNEL_R: ${{ secrets.CHANNEL_R }}
-          # 구 봇 멘션 파리티: 고정 2개 + GROUP_ID_P(S02C40VF4HG)
+          # 구 봇 멘션 파리티: 고정 2개 + GROUP_ID_P
           MENTION_GROUP_IDS: S01DBJMNK4P,S09PR1FJTJP,${{ secrets.GROUP_ID_P }}
           DRY_RUN: 'true' # 구 봇에서 완전 전환 시 false로 변경
 
