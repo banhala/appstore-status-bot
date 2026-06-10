@@ -23,6 +23,10 @@ export interface Env {
   windowVersion?: string;
   /** dispatch payload의 release note (Slack thread 답글용) */
   releaseNote?: string;
+  /** 상태 저장용 gist ID (GIST_ID) */
+  gistId?: string;
+  /** gist 접근 토큰 (GH_TOKEN, gist 스코프) */
+  githubToken?: string;
 }
 
 const required = (name: string): string => {
@@ -69,5 +73,7 @@ export const loadEnv = (): Env => {
     trigger: optional('TRIGGER') ?? 'manual',
     windowVersion: optional('WINDOW_VERSION'),
     releaseNote: optional('RELEASE_NOTE'),
+    gistId: optional('GIST_ID'),
+    githubToken: optional('GH_TOKEN'),
   };
 };

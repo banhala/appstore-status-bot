@@ -1,6 +1,6 @@
 # appstore-status-bot
 
-> update date: 2026-06-09
+> update date: 2026-06-10
 
 App Store Connect의 **앱 심사·배포 상태 변화를 감지해 Slack으로 알리는 봇**입니다.
 순수 TypeScript로 App Store Connect REST API(JWT 인증)를 직접 호출하며, 런타임 의존성이 없습니다.
@@ -11,12 +11,12 @@ App Store Connect의 **앱 심사·배포 상태 변화를 감지해 Slack으로
 
 1. 추적 윈도우 확인 — dispatch·수동이면 윈도우 오픈(기본 14일), schedule인데 윈도우가 닫혀 있으면 즉시 종료(폴링 안 함)
 2. App Store Connect 조회 → 최신 버전의 심사 상태·점진적 배포 상태 정규화
-3. 직전 상태(`state/status.json`)와 비교(diff) — 변화가 있을 때만 알림
+3. 직전 상태(secret gist)와 비교(diff) — 변화가 있을 때만 알림
 4. Slack 전송 (심사 단계 / 점진적 배포 진행률)
-5. 상태 저장. 모든 앱이 점진적 배포 완료되면 윈도우 닫음
+5. 상태 저장(gist). 모든 앱이 점진적 배포 완료되면 윈도우 닫음
 
-핵심은 **심사가 진행되는 구간에만 폴링**한다는 점입니다. 윈도우가 닫혀 있으면 10분 cron이
-즉시 종료하므로, 과거처럼 24시간 내내 도는 노이즈가 없습니다.
+핵심은 **심사가 진행되는 구간에만 폴링**한다는 점입니다. 윈도우가 닫혀 있으면 cron이 떠도
+조회 없이 바로 종료하므로, 24시간 내내 도는 노이즈가 없습니다.
 
 ### 알림 메시지
 
@@ -41,11 +41,11 @@ GitHub Actions Secrets에 등록합니다.
 | `BUNDLE_ID` | 대상 번들 ID (콤마로 여러 개 지정 가능) | ✅ |
 | `SLACK_WEB_CLIENT_API_KEY` | Slack Bot 토큰 | ✅ |
 | `CHANNEL_R` | 알림 채널 ID | ✅ |
+| `GIST_ID` | 상태 저장용 secret gist ID | ✅ |
+| `GH_TOKEN` | gist 접근 PAT (`gist` 스코프) | ✅ |
 | `MENTION_GROUP_IDS` | 멘션할 subteam ID 목록(콤마). 없으면 `GROUP_ID_P` 사용 | 선택 |
 | `DRY_RUN` | `true`면 Slack 미발송(조회·판정만) | 선택 |
 | `SUMMARY` | ASC 응답 로그. 기본 슬림 요약, `false`면 전체 raw 출력 | 선택 |
-
-> CI에서 상태 파일 커밋에 쓰는 `GITHUB_TOKEN`은 자동 제공됩니다(워크플로우 `contents: write`).
 
 ## 트리거 연동
 
@@ -74,8 +74,10 @@ GitHub Actions Secrets에 등록합니다.
 
 ## 상태 저장
 
-직전 상태는 레포의 [`state/status.json`](./state/status.json)에 저장합니다(외부 저장소 없음).
-변화가 있을 때만 CI에서 커밋·푸시하며, 로컬 실행 시에는 파일만 갱신하고 커밋하지 않습니다.
+직전 상태는 **secret gist**(`GIST_ID`)에 `status.json` 파일로 저장합니다. 변화가 있을 때만 CI에서
+gist를 갱신하며, **로컬 실행 시에는 쓰지 않습니다**(읽기만, 없으면 기본값). gist ID가 시크릿이라
+레포가 public이어도 심사 상태가 레포에 노출되지 않습니다. 우리 스키마(window/apps)가 아닌
+내용은 기본값으로 폴백 후 첫 실행에 재기록됩니다.
 
 ## 로컬 실행 / 디버그
 
@@ -117,7 +119,10 @@ src/
     slack.ts        # Slack 전송
   state/
     types.ts        # 상태 타입·enum
-    store.ts        # status.json 로드/저장
-state/status.json   # 추적 상태 저장 파일
+    store.ts        # 상태 gist 로드/저장
 .github/workflows/poll.yml
+```
+
+상태(`status.json`)는 레포가 아니라 secret gist에 보관됩니다.
+```
 ```

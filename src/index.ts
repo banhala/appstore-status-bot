@@ -11,13 +11,20 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 const main = async (): Promise<void> => {
   const env = loadEnv();
-  const state = await loadState();
 
   const now = new Date();
   const nowIso = now.toISOString();
 
-  // 상태 커밋/푸시는 CI(GitHub Actions)에서만. 로컬/dry 실행은 파일만 쓰고 부작용 없음
-  const commitState = process.env.GITHUB_ACTIONS === 'true';
+  // 상태 저장(gist write)은 CI에서만. 로컬/dry 실행은 읽기만 하고 쓰지 않음
+  const persist = process.env.GITHUB_ACTIONS === 'true';
+  const gistConfig =
+    env.gistId !== undefined && env.githubToken !== undefined
+      ? { gistId: env.gistId, token: env.githubToken }
+      : undefined;
+  if (persist && gistConfig === undefined) {
+    throw new Error('CI 실행에는 GIST_ID / GH_TOKEN 시크릿이 필요합니다');
+  }
+  const state = await loadState(gistConfig);
 
   // repository_dispatch(App Store 버전 생성) / workflow_dispatch(수동) → 윈도우 오픈
   const isOpener = env.trigger === 'repository_dispatch' || env.trigger === 'workflow_dispatch';
@@ -49,7 +56,8 @@ const main = async (): Promise<void> => {
     );
     await saveState(
       { window: { ...reviewWindow, open: false }, apps: state.apps, updatedAt: nowIso },
-      { commit: commitState },
+      gistConfig,
+      persist,
     );
     return;
   }
@@ -90,7 +98,7 @@ const main = async (): Promise<void> => {
     reviewWindow = { ...reviewWindow, open: false };
   }
 
-  await saveState({ window: reviewWindow, apps: nextApps, updatedAt: nowIso }, { commit: commitState });
+  await saveState({ window: reviewWindow, apps: nextApps, updatedAt: nowIso }, gistConfig, persist);
 };
 
 main().catch((error: unknown) => {

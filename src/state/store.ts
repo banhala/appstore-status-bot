@@ -1,12 +1,14 @@
-import { readFile, writeFile } from 'node:fs/promises';
-import { execFile } from 'node:child_process';
-import { promisify } from 'node:util';
 import type { StoredState } from './types.js';
 
-const execFileAsync = promisify(execFile);
-
-export const STATE_PATH = 'state/status.json';
+const GIST_API = 'https://api.github.com/gists';
+const FILENAME = 'status.json';
+const TIMEOUT_MS = 30_000;
 const EPOCH = '1970-01-01T00:00:00Z';
+
+export interface GistConfig {
+  gistId: string;
+  token: string;
+}
 
 export const defaultState = (): StoredState => ({
   window: { open: false, openedAt: EPOCH, hardExpiresAt: EPOCH, trigger: 'manual' },
@@ -14,50 +16,82 @@ export const defaultState = (): StoredState => ({
   updatedAt: EPOCH,
 });
 
-export const loadState = async (path: string = STATE_PATH): Promise<StoredState> => {
+interface GistResponse {
+  files?: Record<string, { content?: string } | null>;
+}
+
+const gistRequest = async (
+  config: GistConfig,
+  method: 'GET' | 'PATCH',
+  body?: unknown,
+): Promise<GistResponse> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
   try {
-    const raw = await readFile(path, 'utf8');
-    return JSON.parse(raw) as StoredState;
-  } catch (error) {
-    const code = (error as NodeJS.ErrnoException).code;
-    if (code !== 'ENOENT') {
-      console.warn(`[상태] ${path} 읽기 실패 — 기본 상태로 시작: ${String(error)}`);
+    const res = await fetch(`${GIST_API}/${config.gistId}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${config.token}`,
+        Accept: 'application/vnd.github+json',
+        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+      },
+      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+      signal: controller.signal,
+    });
+    if (!res.ok) {
+      throw new Error(`Gist ${method} ${res.status} ${res.statusText}: ${await res.text()}`);
     }
+    return (await res.json()) as GistResponse;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
+// 우리 형식(window/apps)이 아니면 false → 기본값 폴백(첫 실행 재baseline)
+const isStoredState = (value: unknown): value is StoredState => {
+  if (typeof value !== 'object' || value === null) {
+    return false;
+  }
+  const candidate = value as Record<string, unknown>;
+  return (
+    typeof candidate.window === 'object' &&
+    candidate.window !== null &&
+    typeof candidate.apps === 'object' &&
+    candidate.apps !== null
+  );
+};
+
+/** gist에서 직전 상태 로드. config 없음(로컬)·파일 없음·구 스키마·실패 → 기본값 */
+export const loadState = async (config?: GistConfig): Promise<StoredState> => {
+  if (config === undefined) {
+    return defaultState();
+  }
+  try {
+    const gist = await gistRequest(config, 'GET');
+    const content = gist.files?.[FILENAME]?.content;
+    if (content === undefined || content === '') {
+      return defaultState();
+    }
+    const parsed: unknown = JSON.parse(content);
+    return isStoredState(parsed) ? parsed : defaultState();
+  } catch (error) {
+    console.warn(`[상태] gist 로드 실패 — 기본 상태로 시작: ${String(error)}`);
     return defaultState();
   }
 };
 
-const git = (args: string[]): Promise<{ stdout: string; stderr: string }> =>
-  execFileAsync('git', args);
-
-// 변화가 있을 때만 commit + push. 동시 push 충돌 시 1회 rebase 후 재시도.
-const commitAndPush = async (path: string): Promise<void> => {
-  await git(['add', path]);
-  const { stdout } = await git(['status', '--porcelain', path]);
-  if (stdout.trim() === '') {
-    console.log('[상태] 직전과 동일 — 커밋 생략');
-    return;
-  }
-  await git(['commit', '-m', '상태 자동 갱신 [skip ci]']);
-  try {
-    await git(['push']);
-  } catch {
-    console.warn('[상태] push 충돌 — rebase 후 재시도');
-    await git(['pull', '--rebase']);
-    await git(['push']);
-  }
-  console.log('[상태] status.json 갱신본 push 완료');
-};
-
+/** gist에 상태 저장. config 없거나 persist=false(로컬/비-CI)면 쓰지 않음 */
 export const saveState = async (
   state: StoredState,
-  options: { commit?: boolean; path?: string } = {},
+  config: GistConfig | undefined,
+  persist: boolean,
 ): Promise<void> => {
-  const path = options.path ?? STATE_PATH;
-  const commit = options.commit ?? true;
-
-  await writeFile(path, `${JSON.stringify(state, null, 2)}\n`, 'utf8');
-  if (commit) {
-    await commitAndPush(path);
+  if (config === undefined || !persist) {
+    console.log('[상태] 저장 생략 (로컬/비-CI)');
+    return;
   }
+  await gistRequest(config, 'PATCH', {
+    files: { [FILENAME]: { content: `${JSON.stringify(state, null, 2)}\n` } },
+  });
+  console.log('[상태] gist 갱신 완료');
 };
