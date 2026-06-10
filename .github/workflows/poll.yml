@@ -45,7 +45,7 @@ jobs:
           # 상태 저장 gist
           GIST_ID: ${{ secrets.GIST_ID }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
-          DRY_RUN: 'true' # 실서비스 전환 시 false
+          DRY_RUN: 'false' # 라이브 발송 (필요 시 true로 무발송 전환)
 
       - name: 실패 알림
         if: failure()
