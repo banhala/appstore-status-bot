@@ -1,8 +1,8 @@
 import { createAscJwt } from './jwt.js';
+import { fetchWithRetry } from '../util/fetchWithRetry.js';
 import type { Env } from '../config/env.js';
 
 const BASE_URL = 'https://api.appstoreconnect.apple.com';
-const TIMEOUT_MS = 30_000;
 
 export interface AscClient {
   get: <T>(path: string, query?: Record<string, string | string[]>) => Promise<T>;
@@ -30,28 +30,21 @@ export const createAscClient = (env: Env): AscClient => {
       }
     }
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-    try {
-      const res = await fetch(url, {
-        headers: { Authorization: `Bearer ${token}` },
-        signal: controller.signal,
-      });
+    const res = await fetchWithRetry(url, {
+      headers: { Authorization: `Bearer ${token}` },
+    });
 
-      const rateLimit = res.headers.get('X-Rate-Limit');
-      if (rateLimit) {
-        console.log(`[ASC] 잔여 요청 한도: ${rateLimit}`);
-      }
-
-      if (!res.ok) {
-        const body = await res.text();
-        throw new Error(`ASC ${res.status} ${res.statusText} (${path}): ${body}`);
-      }
-
-      return (await res.json()) as T;
-    } finally {
-      clearTimeout(timer);
+    const rateLimit = res.headers.get('X-Rate-Limit');
+    if (rateLimit) {
+      console.log(`[ASC] 잔여 요청 한도: ${rateLimit}`);
     }
+
+    if (!res.ok) {
+      const body = await res.text();
+      throw new Error(`ASC ${res.status} ${res.statusText} (${path}): ${body}`);
+    }
+
+    return (await res.json()) as T;
   };
 
   return { get };

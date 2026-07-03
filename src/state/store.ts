@@ -1,8 +1,8 @@
+import { fetchWithRetry } from '../util/fetchWithRetry.js';
 import type { StoredState } from './types.js';
 
 const GIST_API = 'https://api.github.com/gists';
 const FILENAME = 'status.json';
-const TIMEOUT_MS = 30_000;
 const EPOCH = '1970-01-01T00:00:00Z';
 
 export interface GistConfig {
@@ -25,26 +25,19 @@ const gistRequest = async (
   method: 'GET' | 'PATCH',
   body?: unknown,
 ): Promise<GistResponse> => {
-  const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
-  try {
-    const res = await fetch(`${GIST_API}/${config.gistId}`, {
-      method,
-      headers: {
-        Authorization: `Bearer ${config.token}`,
-        Accept: 'application/vnd.github+json',
-        ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
-      },
-      ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
-      signal: controller.signal,
-    });
-    if (!res.ok) {
-      throw new Error(`Gist ${method} ${res.status} ${res.statusText}: ${await res.text()}`);
-    }
-    return (await res.json()) as GistResponse;
-  } finally {
-    clearTimeout(timer);
+  const res = await fetchWithRetry(`${GIST_API}/${config.gistId}`, {
+    method,
+    headers: {
+      Authorization: `Bearer ${config.token}`,
+      Accept: 'application/vnd.github+json',
+      ...(body !== undefined ? { 'Content-Type': 'application/json' } : {}),
+    },
+    ...(body !== undefined ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!res.ok) {
+    throw new Error(`Gist ${method} ${res.status} ${res.statusText}: ${await res.text()}`);
   }
+  return (await res.json()) as GistResponse;
 };
 
 // 우리 형식(window/apps)이 아니면 false → 기본값 폴백(첫 실행 재baseline)
@@ -61,21 +54,25 @@ const isStoredState = (value: unknown): value is StoredState => {
   );
 };
 
-/** gist에서 직전 상태 로드. config 없음(로컬)·파일 없음·구 스키마·실패 → 기본값 */
+/**
+ * gist에서 직전 상태 로드
+ * - config 없음·파일 없음·구 스키마·손상: 기본값
+ * - 요청 실패(재시도 후): throw — CI면 실패 알림으로 표면화
+ */
 export const loadState = async (config?: GistConfig): Promise<StoredState> => {
   if (config === undefined) {
     return defaultState();
   }
+  const gist = await gistRequest(config, 'GET');
+  const content = gist.files?.[FILENAME]?.content;
+  if (content === undefined || content === '') {
+    return defaultState();
+  }
   try {
-    const gist = await gistRequest(config, 'GET');
-    const content = gist.files?.[FILENAME]?.content;
-    if (content === undefined || content === '') {
-      return defaultState();
-    }
     const parsed: unknown = JSON.parse(content);
     return isStoredState(parsed) ? parsed : defaultState();
   } catch (error) {
-    console.warn(`[상태] gist 로드 실패 — 기본 상태로 시작: ${String(error)}`);
+    console.warn(`[상태] gist content 파싱 실패 — 기본 상태로 재baseline: ${String(error)}`);
     return defaultState();
   }
 };

@@ -51,13 +51,17 @@ jobs:
         if: failure()
         env:
           SLACK_TOKEN: ${{ secrets.SLACK_WEB_CLIENT_API_KEY }}
-          SLACK_CHANNEL: ${{ secrets.CHANNEL_R }}
+          SLACK_CHANNEL: ${{ secrets.CHANNEL_CI }} # 실패 알림은 CI 채널(#ch_ios_ci)로 분리
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           payload=$(jq -n --arg ch "$SLACK_CHANNEL" \
             --arg text "⚠️ appstore-status-bot 실행 실패: $RUN_URL" \
             '{channel: $ch, text: $text}')
-          curl -sf -X POST https://slack.com/api/chat.postMessage \
+          # Slack은 not_in_channel 등 실패에도 HTTP 200이라 curl -f로 못 잡음
+          resp=$(curl -s -X POST https://slack.com/api/chat.postMessage \
             -H "Authorization: Bearer $SLACK_TOKEN" \
             -H "Content-Type: application/json; charset=utf-8" \
-            -d "$payload" || true
+            -d "$payload" || true)
+          if [ "$(printf '%s' "$resp" | jq -r '.ok // empty' 2>/dev/null)" != "true" ]; then
+            echo "::warning::Slack 실패 알림 전송 실패: $resp"
+          fi

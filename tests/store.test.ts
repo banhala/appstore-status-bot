@@ -43,10 +43,9 @@ describe('store (gist)', () => {
     expect((await loadState(config)).apps).toEqual({});
   });
 
-  it('GET 실패 시 기본값 폴백', async () => {
-    vi.spyOn(console, 'warn').mockImplementation(() => {});
+  it('GET 지속 실패(4xx/5xx)면 조용히 폴백하지 않고 throw한다', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, status: 404, statusText: 'Not Found', text: async () => 'x' }));
-    expect((await loadState(config)).apps).toEqual({});
+    await expect(loadState(config)).rejects.toThrow(/404/);
   });
 
   it('persist=true면 PATCH로 저장한다', async () => {
