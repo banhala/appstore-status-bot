@@ -44,18 +44,6 @@ export interface AppStatus {
   phasedCurrentDay: number;
 }
 
-export interface Window {
-  open: boolean;
-  /** ISO 8601 */
-  openedAt: string;
-  /** ISO 8601 — openedAt + WINDOW_TTL_DAYS */
-  hardExpiresAt: string;
-  trigger: 'repository_dispatch' | 'workflow_dispatch' | 'manual';
-  targetVersion?: string;
-  /** RN dispatch payload의 release note → Slack thread 답글용 */
-  releaseNote?: string;
-}
-
 export interface StoredAppEntry {
   version: string;
   state: VersionState;
@@ -64,7 +52,6 @@ export interface StoredAppEntry {
 }
 
 export interface StoredState {
-  window: Window;
   apps: Record<string, StoredAppEntry>;
   /** ISO 8601 */
   updatedAt: string;

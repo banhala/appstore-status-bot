@@ -17,12 +17,6 @@ export interface Env {
   dryRun: boolean;
   /** ASC 응답 로그 — 기본 true(슬림 요약), false면 전체 raw 출력 */
   summary: boolean;
-  /** github.event_name (repository_dispatch | schedule | workflow_dispatch). 기본 manual */
-  trigger: string;
-  /** dispatch payload의 대상 버전 */
-  windowVersion?: string;
-  /** dispatch payload의 release note (Slack thread 답글용) */
-  releaseNote?: string;
   /** 상태 저장용 gist ID (GIST_ID) */
   gistId?: string;
   /** gist 접근 토큰 (GH_TOKEN, gist 스코프) */
@@ -70,9 +64,6 @@ export const loadEnv = (): Env => {
     mentionGroupIds: mentionRaw ? splitList(mentionRaw) : [],
     dryRun: optional('DRY_RUN') === 'true',
     summary: optional('SUMMARY') !== 'false',
-    trigger: optional('TRIGGER') ?? 'manual',
-    windowVersion: optional('WINDOW_VERSION'),
-    releaseNote: optional('RELEASE_NOTE'),
     gistId: optional('GIST_ID'),
     githubToken: optional('GH_TOKEN'),
   };

@@ -22,7 +22,6 @@ const entry = (over: Partial<StoredAppEntry> = {}): StoredAppEntry => ({
 });
 
 const stored = (apps: StoredState['apps'] = {}): StoredState => ({
-  window: { open: true, openedAt: 'x', hardExpiresAt: 'y', trigger: 'manual' },
   apps,
   updatedAt: 'z',
 });

@@ -11,7 +11,6 @@ export interface GistConfig {
 }
 
 export const defaultState = (): StoredState => ({
-  window: { open: false, openedAt: EPOCH, hardExpiresAt: EPOCH, trigger: 'manual' },
   apps: {},
   updatedAt: EPOCH,
 });
@@ -40,18 +39,14 @@ const gistRequest = async (
   return (await res.json()) as GistResponse;
 };
 
-// 우리 형식(window/apps)이 아니면 false → 기본값 폴백(첫 실행 재baseline)
+// apps가 없으면 우리 형식이 아님 → 기본값 폴백(첫 실행 재baseline)
+// 구 스키마의 window 키는 무시. 다음 저장에서 자연히 사라진다
 const isStoredState = (value: unknown): value is StoredState => {
   if (typeof value !== 'object' || value === null) {
     return false;
   }
   const candidate = value as Record<string, unknown>;
-  return (
-    typeof candidate.window === 'object' &&
-    candidate.window !== null &&
-    typeof candidate.apps === 'object' &&
-    candidate.apps !== null
-  );
+  return typeof candidate.apps === 'object' && candidate.apps !== null;
 };
 
 /**
