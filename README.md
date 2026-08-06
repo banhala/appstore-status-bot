@@ -1,33 +1,28 @@
 # appstore-status-bot
 
-> update date: 2026-06-10
+> update date: 2026-08-06
 
 App Store Connect의 **앱 심사·배포 상태 변화를 감지해 Slack으로 알리는 봇**입니다.
 순수 TypeScript로 App Store Connect REST API(JWT 인증)를 직접 호출하며, 런타임 의존성이 없습니다.
 
 ## 동작 방식
 
-트리거: App Store 버전 생성(enforce_phased_release) 직후 repository_dispatch / 하트비트 cron(명목 5분, GitHub 스로틀로 실제 ~30-50분) / 수동 실행
+트리거: cron(명목 5분, GitHub 스로틀로 실제 ~30-50분) / iOS 릴리즈 직후 repository_dispatch / 수동 실행
 
-1. 추적 윈도우 확인 — dispatch·수동이면 윈도우 오픈(기본 14일), schedule인데 윈도우가 닫혀 있으면 즉시 종료(폴링 안 함)
-2. App Store Connect 조회 → 최신 버전의 심사 상태·점진적 배포 상태 정규화
-3. 직전 상태(secret gist)와 비교(diff) — 변화가 있을 때만 알림
-4. Slack 전송 (심사 단계 / 점진적 배포 진행률)
-5. 상태 저장(gist). 모든 앱이 점진적 배포 완료되면 윈도우 닫음
+1. App Store Connect 조회 → 최신 버전의 심사 상태·점진적 배포 상태 정규화
+2. 직전 상태(secret gist)와 비교(diff) — 변화가 있을 때만 알림
+3. Slack 전송 (심사 단계 / 점진적 배포 진행률)
+4. 상태 저장(gist)
 
-핵심은 **심사가 진행되는 구간에만 폴링**한다는 점입니다. 윈도우가 닫혀 있으면 cron이 떠도
-조회 없이 바로 종료하므로, 24시간 내내 도는 노이즈가 없습니다.
+세 트리거가 모두 같은 일을 합니다. dispatch는 릴리즈 직후 한 번을 앞당길 뿐이고,
+들어오지 않아도 cron이 계속 추적합니다. 상태가 그대로면 조회만 하고 조용히 끝나므로
+알림 노이즈는 diff가 걸러 줍니다.
 
 ### 알림 메시지
 
 - **심사 단계**: 제출 준비 중 / 심사 대기 중 / 심사 중 / 거부됨 / 메타데이터 거부됨 등
 - **점진적 배포**: 1% → 2% → 5% → 10% → 20% → 50% → 100% 진행률, 완료/중단
 - 메시지 앞에 지정한 Slack subteam을 멘션하고, App Store Connect 카드(버전·상태·아이콘)를 첨부
-
-### 미리보기
-
-<img src="./.github/images/preview.png" width="70%">
-
 
 ## 환경변수 / 시크릿
 
@@ -47,37 +42,14 @@ GitHub Actions Secrets에 등록합니다.
 | `DRY_RUN` | `true`면 Slack 미발송(조회·판정만) | 선택 |
 | `SUMMARY` | ASC 응답 로그. 기본 슬림 요약, `false`면 전체 raw 출력 | 선택 |
 
-## 트리거 연동
-
-알림 대상은 **App Store 버전**이므로, TestFlight 배포가 아니라 App Store 버전이 생성되는
-시점(iOS 릴리즈 워크플로우의 `enforce_phased_release` 직후)에 이 레포로 `repository_dispatch`를
-보냅니다.
-
-```yaml
-# 발신 측 워크플로우 (예시)
-- name: appstore-status-bot 트리거
-  if: success()
-  run: |
-    curl -sf -X POST https://api.github.com/repos/banhala/appstore-status-bot/dispatches \
-      -H "Authorization: Bearer ${{ secrets.ASC_BOT_DISPATCH_TOKEN }}" \
-      -H "Accept: application/vnd.github+json" \
-      -d "$(jq -n --arg v "$APP_VERSION" \
-            '{event_type:"appstore-review-window", client_payload:{version:$v}}')"
-```
-
-`client_payload.releaseNote`를 함께 보내면 Slack 알림 thread에 release note가 답글로 붙습니다.
-
-> 위 예시는 템플릿입니다. 실제 연결하려면 ① `$APP_VERSION`을 `Version.xcconfig` 등에서 주입,
-> ② 이 레포에 `repository_dispatch` 권한(fine-grained PAT, `contents: write`)을 가진
-> `ASC_BOT_DISPATCH_TOKEN` 시크릿을 **발신 레포**에 추가해야 합니다.
-> `event_type`(`appstore-review-window`)은 `poll.yml`의 트리거와 일치합니다.
-
 ## 상태 저장
 
 직전 상태는 **secret gist**(`GIST_ID`)에 `status.json` 파일로 저장합니다. 변화가 있을 때만 CI에서
 gist를 갱신하며, **로컬 실행 시에는 쓰지 않습니다**(읽기만, 없으면 기본값). gist ID가 시크릿이라
-레포가 public이어도 심사 상태가 레포에 노출되지 않습니다. 우리 스키마(window/apps)가 아닌
-내용은 기본값으로 폴백 후 첫 실행에 재기록됩니다.
+레포가 public이어도 심사 상태가 레포에 노출되지 않습니다. `apps` 키가 없는 내용은 기본값으로
+폴백 후 첫 실행에 재기록됩니다.
+
+gist 쓰기는 소유자만 가능합니다. `GH_TOKEN`은 반드시 해당 gist를 소유한 계정에서 발급해야 합니다.
 
 ## 로컬 실행 / 디버그
 
@@ -85,7 +57,7 @@ gist를 갱신하며, **로컬 실행 시에는 쓰지 않습니다**(읽기만,
 npm install
 
 # dry 실행 (Slack 미발송, ASC 응답 슬림 요약 출력)
-TRIGGER=workflow_dispatch DRY_RUN=true \
+DRY_RUN=true \
 KEY_ID=... ISSUER_ID=... PRIVATE_KEY="$(cat AuthKey_XXXX.p8)" \
 BUNDLE_ID=com.example.app \
 SLACK_WEB_CLIENT_API_KEY=dummy CHANNEL_R=dummy \
@@ -93,8 +65,7 @@ npm start
 # 전체 raw 응답을 보려면 SUMMARY=false 추가
 ```
 
-`TRIGGER=workflow_dispatch`가 있어야 윈도우가 열려 폴링합니다. `DRY_RUN=true`면 알림은
-콘솔에만 출력됩니다.
+`DRY_RUN=true`면 알림은 콘솔에만 출력됩니다. 로컬 실행은 gist를 읽기만 하고 쓰지 않습니다.
 
 ## 개발
 
@@ -107,7 +78,7 @@ npm test            # 단위·통합 테스트 (vitest)
 
 ```
 src/
-  index.ts          # 오케스트레이션 (윈도우 판정 → 조회 → diff → 알림 → 저장)
+  index.ts          # 오케스트레이션 (조회 → diff → 알림 → 저장)
   config/env.ts     # 환경변수 로딩·검증
   asc/
     jwt.ts          # ES256 JWT 발급
@@ -124,5 +95,3 @@ src/
 ```
 
 상태(`status.json`)는 레포가 아니라 secret gist에 보관됩니다.
-```
-```

@@ -22,7 +22,6 @@ afterEach(() => {
 describe('store (gist)', () => {
   it('config 없으면(로컬) 기본 상태', async () => {
     const state = await loadState();
-    expect(state.window.open).toBe(false);
     expect(state.apps).toEqual({});
   });
 

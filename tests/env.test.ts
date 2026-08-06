@@ -17,7 +17,7 @@ beforeEach(() => {
   for (const key of Object.keys(process.env)) {
     if (
       key in REQUIRED ||
-      ['MENTION_GROUP_IDS', 'GROUP_ID_P', 'DRY_RUN', 'SUMMARY', 'TRIGGER', 'WINDOW_VERSION', 'RELEASE_NOTE'].includes(key)
+      ['MENTION_GROUP_IDS', 'GROUP_ID_P', 'DRY_RUN', 'SUMMARY'].includes(key)
     ) {
       delete process.env[key];
     }
@@ -64,12 +64,6 @@ describe('loadEnv', () => {
     expect(loadEnv().dryRun).toBe(true);
     process.env.DRY_RUN = '1';
     expect(loadEnv().dryRun).toBe(false);
-  });
-
-  it('trigger 기본값은 manual', () => {
-    expect(loadEnv().trigger).toBe('manual');
-    process.env.TRIGGER = 'schedule';
-    expect(loadEnv().trigger).toBe('schedule');
   });
 
   it('SUMMARY 기본 true, "false"일 때만 false', () => {

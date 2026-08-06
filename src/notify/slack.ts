@@ -12,12 +12,11 @@ export interface SlackNotifierParams {
 }
 
 export interface SlackNotifier {
-  notify: (app: AppStatus, releaseNote?: string) => Promise<void>;
+  notify: (app: AppStatus) => Promise<void>;
 }
 
 interface PostMessageResponse {
   ok: boolean;
-  ts?: string;
   error?: string;
 }
 
@@ -37,11 +36,7 @@ const buildAttachment = (app: AppStatus): Record<string, unknown> => ({
 export const createSlackNotifier = (params: SlackNotifierParams): SlackNotifier => {
   const { token, channel, mentionGroupIds, dryRun } = params;
 
-  const post = async (
-    text: string,
-    attachments?: Record<string, unknown>[],
-    threadTs?: string,
-  ): Promise<string> => {
+  const post = async (text: string, attachments: Record<string, unknown>[]): Promise<void> => {
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
     try {
@@ -51,36 +46,26 @@ export const createSlackNotifier = (params: SlackNotifierParams): SlackNotifier 
           'Content-Type': 'application/json; charset=utf-8',
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          channel,
-          text,
-          ...(attachments ? { attachments } : {}),
-          ...(threadTs !== undefined ? { thread_ts: threadTs } : {}),
-        }),
+        body: JSON.stringify({ channel, text, attachments }),
         signal: controller.signal,
       });
       const data = (await res.json()) as PostMessageResponse;
       if (!data.ok) {
         throw new Error(`Slack 전송 실패: ${data.error ?? 'unknown'}`);
       }
-      return data.ts ?? '';
     } finally {
       clearTimeout(timer);
     }
   };
 
-  const notify = async (app: AppStatus, releaseNote?: string): Promise<void> => {
+  const notify = async (app: AppStatus): Promise<void> => {
     const text = buildHeadline(app, mentionGroupIds);
     if (dryRun) {
       console.log(`[알림:DRY_RUN] ${app.name} ${app.version} → ${app.state} (미발송) | ${text}`);
       return;
     }
-    const threadTs = await post(text, [buildAttachment(app)]);
+    await post(text, [buildAttachment(app)]);
     console.log(`[알림] ${app.name} ${app.version} → ${app.state} Slack 전송 완료`);
-    if (releaseNote !== undefined && releaseNote !== '') {
-      await post(releaseNote, undefined, threadTs);
-      console.log('[알림] release note를 thread 답글로 전송');
-    }
   };
 
   return { notify };
