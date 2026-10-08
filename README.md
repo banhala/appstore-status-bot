@@ -1,6 +1,6 @@
 # appstore-status-bot
 
-> update date: 2026-08-06
+> update date: 2026-10-08
 
 App Store Connect의 **앱 심사·배포 상태 변화를 감지해 Slack으로 알리는 봇**입니다.
 순수 TypeScript로 App Store Connect REST API(JWT 인증)를 직접 호출하며, 런타임 의존성이 없습니다.
