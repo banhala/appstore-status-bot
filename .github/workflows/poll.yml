@@ -17,9 +17,9 @@ jobs:
     permissions:
       contents: read # 상태는 gist에 저장하므로 레포 쓰기 불필요
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: 'npm'
