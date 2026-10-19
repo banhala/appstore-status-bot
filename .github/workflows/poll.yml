@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   poll:
-    runs-on: ${{ vars.ABLY_RUNNER_2 || 'selfhosted-ubuntu-24.04-2' }}
+    runs-on: ${{ vars.ABLY_RUNNER_2 }}
     permissions:
       contents: read # 상태는 gist에 저장하므로 레포 쓰기 불필요
     steps:

@@ -7,7 +7,7 @@ on:
 
 jobs:
   keepalive:
-    runs-on: ${{ vars.ABLY_RUNNER_2 || 'selfhosted-ubuntu-24.04-2' }}
+    runs-on: ${{ vars.ABLY_RUNNER_2 }}
     permissions:
       contents: write # README 커밋 푸시
     steps:
