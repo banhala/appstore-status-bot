@@ -13,7 +13,7 @@ concurrency:
 
 jobs:
   poll:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.ABLY_RUNNER_2 }}
     permissions:
       contents: read # 상태는 gist에 저장하므로 레포 쓰기 불필요
     steps:
