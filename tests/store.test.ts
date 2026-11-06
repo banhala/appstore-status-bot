@@ -6,7 +6,9 @@ const config = { gistId: 'gid', token: 'tok' };
 
 const sample = (): StoredState => {
   const state = defaultState();
-  state.apps['1'] = { version: '1.0.0', state: 'IN_REVIEW', phasedState: 'NOT_EXIST', phasedCurrentDay: 0 };
+  state.apps['1'] = {
+    versions: { v1: { version: '1.0.0', state: 'IN_REVIEW', phasedState: 'NOT_EXIST', phasedCurrentDay: 0 } },
+  };
   return state;
 };
 
@@ -28,7 +30,17 @@ describe('store (gist)', () => {
   it('gist 내용을 파싱해 로드한다', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(gistWith(JSON.stringify(sample()))));
     const state = await loadState(config);
-    expect(state.apps['1']?.state).toBe('IN_REVIEW');
+    expect(state).toEqual(sample());
+  });
+
+  it('앱당 1칸이던 구 apps 엔트리도 그대로 로드한다', async () => {
+    const legacy = {
+      apps: { '1': { version: '2.416.0', state: 'WAITING_FOR_REVIEW', phasedState: 'INACTIVE', phasedCurrentDay: 0 } },
+      updatedAt: 'z',
+    };
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(gistWith(JSON.stringify(legacy))));
+    const state = await loadState(config);
+    expect(state.apps['1']).toEqual(legacy.apps['1']);
   });
 
   it('구 스키마/유효하지 않은 내용이면 기본값으로 폴백', async () => {

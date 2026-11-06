@@ -1,11 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { buildHeadline, stateColor, stateLabel } from '../src/notify/messages.js';
+import {
+  buildHeadline,
+  buildNoticeHeadline,
+  noticeColor,
+  noticeLabel,
+  stateColor,
+  stateLabel,
+} from '../src/notify/messages.js';
 import { VERSION_STATES } from '../src/state/types.js';
-import type { AppStatus } from '../src/state/types.js';
+import type { AppStatus, Notice, StoredVersionEntry } from '../src/state/types.js';
 
 const app = (over: Partial<AppStatus> = {}): AppStatus => ({
   appId: '1',
   name: 'A',
+  versionId: 'v1',
   version: '1.0.0',
   state: 'IN_REVIEW',
   iconUrl: '',
@@ -79,5 +87,37 @@ describe('messages', () => {
       const text = buildHeadline(app({ state: 'READY_FOR_SALE', phasedState: 'ACTIVE', phasedCurrentDay: day }), []);
       expect(text).toContain('점진적 배포가 완료');
     }
+  });
+});
+
+describe('notice messages', () => {
+  const prev: StoredVersionEntry = { version: '2.400.0', state: 'READY_FOR_SALE', phasedState: 'ACTIVE', phasedCurrentDay: 2 };
+  const next = app({ versionId: 'v2', version: '2.401.0', state: 'READY_FOR_SALE', phasedState: 'ACTIVE', phasedCurrentDay: 1 });
+  const superseded = (over: Partial<AppStatus>): Notice => ({
+    kind: 'superseded',
+    app: app({ version: '2.400.0', state: 'READY_FOR_SALE', ...over }),
+    next,
+    prev,
+  });
+
+  it('status 알림은 상태 헤드라인과 라벨, 색상을 그대로 쓴다', () => {
+    const notice: Notice = { kind: 'status', app: app({ state: 'IN_REVIEW' }) };
+    expect(buildNoticeHeadline(notice, [])).toBe(buildHeadline(notice.app, []));
+    expect(noticeLabel(notice)).toBe(stateLabel('IN_REVIEW'));
+    expect(noticeColor(notice)).toBe(stateColor('IN_REVIEW'));
+  });
+
+  it('100% 전환 없이 밀려난 버전은 마지막 진행율과 다음 버전을 알린다', () => {
+    const notice = superseded({ phasedState: 'ACTIVE', phasedCurrentDay: 2 });
+    expect(buildNoticeHeadline(notice, ['G1'])).toBe(
+      '<!subteam^G1> 애플 심사 상태: 점진적 배포를 100%로 전환하지 않은 상태에서 2.401.0 출시가 시작되었습니다. (마지막 진행율 2%)',
+    );
+    expect(noticeLabel(notice)).toBe('점진적 배포 미완료');
+    expect(noticeColor(notice)).toMatch(/^#[0-9a-f]{6}$/);
+  });
+
+  it('PAUSED 상태로 밀려나면 중단 상태로 표기한다', () => {
+    const text = buildNoticeHeadline(superseded({ phasedState: 'PAUSED', phasedCurrentDay: 3 }), []);
+    expect(text).toContain('(점진적 배포 중단 상태)');
   });
 });

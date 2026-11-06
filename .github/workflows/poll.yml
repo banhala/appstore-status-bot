@@ -4,7 +4,7 @@ on:
   repository_dispatch:
     types: [appstore-review-window] # 앱 릴리즈 워크플로우에서 발사 — 즉시 1회 폴링
   schedule:
-    - cron: '*/5 * * * *' # 명목 5분 (GitHub 스로틀로 실제 ~30-50분)
+    - cron: '*/5 * * * *' # 명목 5분, 실제 간격은 GitHub 스로틀로 더 길고 일정하지 않음
   workflow_dispatch: # 수동 폴링
 
 concurrency:

@@ -37,6 +37,7 @@ export const isPhasedState = (value: string): value is PhasedState =>
 export interface AppStatus {
   appId: string;
   name: string;
+  versionId: string;
   version: string;
   state: VersionState;
   iconUrl: string;
@@ -44,15 +45,35 @@ export interface AppStatus {
   phasedCurrentDay: number;
 }
 
-export interface StoredAppEntry {
+export interface AppSnapshot {
+  appId: string;
+  name: string;
+  versions: AppStatus[];
+}
+
+export interface StoredVersionEntry {
   version: string;
   state: VersionState;
   phasedState: PhasedState;
   phasedCurrentDay: number;
 }
 
+export interface StoredAppEntry {
+  versions: Record<string, StoredVersionEntry>;
+}
+
+export type LegacyStoredAppEntry = StoredVersionEntry;
+
+export type Notice =
+  | { kind: 'status'; app: AppStatus; prev?: StoredVersionEntry }
+  | { kind: 'superseded'; app: AppStatus; next: AppStatus; prev: StoredVersionEntry };
+
 export interface StoredState {
-  apps: Record<string, StoredAppEntry>;
+  apps: Record<string, StoredAppEntry | LegacyStoredAppEntry>;
   /** ISO 8601 */
   updatedAt: string;
 }
+
+export const isLegacyAppEntry = (
+  entry: StoredAppEntry | LegacyStoredAppEntry,
+): entry is LegacyStoredAppEntry => !('versions' in entry);
