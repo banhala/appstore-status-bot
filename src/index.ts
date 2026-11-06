@@ -1,8 +1,8 @@
 import { loadEnv } from './config/env.js';
 import { createAscClient } from './asc/client.js';
-import { fetchAppStatuses } from './asc/appStatus.js';
-import { diffStatuses } from './diff/diff.js';
-import { createSlackNotifier } from './notify/slack.js';
+import { fetchAppSnapshots } from './asc/appStatus.js';
+import { diffStatuses, rollbackFailed, trackedVersions } from './diff/diff.js';
+import { createSlackNotifier, notifyAll } from './notify/slack.js';
 import { loadState, saveState } from './state/store.js';
 
 const main = async (): Promise<void> => {
@@ -22,20 +22,25 @@ const main = async (): Promise<void> => {
   const state = await loadState(gistConfig);
 
   const client = createAscClient(env);
-  const statuses = await fetchAppStatuses(client, env.bundleIds, env.summary);
-  for (const status of statuses) {
-    const phasedPart =
-      status.phasedState === 'ACTIVE' ? ` (${status.phasedCurrentDay}일차)` : '';
-    console.log(
-      `[관측] ${status.name} ${status.version} — 심사 ${status.state}, 점진배포 ${status.phasedState}${phasedPart}`,
-    );
+  const snapshots = await fetchAppSnapshots(client, env.bundleIds, env.summary);
+  for (const snapshot of snapshots) {
+    for (const status of trackedVersions(snapshot.versions)) {
+      const phasedPart =
+        status.phasedState === 'ACTIVE' ? ` (${status.phasedCurrentDay}일차)` : '';
+      console.log(
+        `[관측] ${status.name} ${status.version} — 심사 ${status.state}, 점진배포 ${status.phasedState}${phasedPart}`,
+      );
+    }
   }
 
-  const { changes, baselined, nextApps } = diffStatuses(statuses, state);
+  const { notices, baselined, nextApps, dropped } = diffStatuses(snapshots, state);
   if (baselined.length > 0) {
     console.log(`[판정] 최초 관측 — baseline ${baselined.length}건 기록(알림 없음)`);
   }
-  if (changes.length === 0 && baselined.length === 0) {
+  for (const { name, version } of dropped) {
+    console.warn(`[판정] ${name} ${version}: ASC 응답에서 사라진 추적 버전 — 추적 종료`);
+  }
+  if (notices.length === 0 && baselined.length === 0) {
     console.log('[판정] 직전 상태와 동일 — 알림 없음');
   }
 
@@ -45,11 +50,16 @@ const main = async (): Promise<void> => {
     mentionGroupIds: env.mentionGroupIds,
     dryRun: env.dryRun,
   });
-  for (const app of changes) {
-    await notifier.notify(app);
-  }
+  const failed = await notifyAll(notifier, notices);
 
-  await saveState({ apps: nextApps, updatedAt: nowIso }, gistConfig, persist);
+  await saveState(
+    { apps: rollbackFailed(nextApps, failed), updatedAt: nowIso },
+    gistConfig,
+    persist,
+  );
+  if (failed.length > 0) {
+    throw new Error(`알림 전송 실패 ${failed.length}건 — 다음 실행에서 재시도`);
+  }
 };
 
 main().catch((error: unknown) => {

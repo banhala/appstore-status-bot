@@ -1,6 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
-import { fetchAppStatuses } from '../src/asc/appStatus.js';
+import { fetchAppSnapshots } from '../src/asc/appStatus.js';
 import type { AscClient } from '../src/asc/client.js';
+import type { AppStatus } from '../src/state/types.js';
 
 const client = (apps: unknown, versions: unknown): AscClient => ({
   get: (async (path: string) => {
@@ -12,7 +13,10 @@ const client = (apps: unknown, versions: unknown): AscClient => ({
 
 const appsRes = { data: [{ type: 'apps', id: 'APPID', attributes: { name: '에이블리' } }] };
 
-describe('fetchAppStatuses', () => {
+const firstVersion = async (target: AscClient, bundleIds: string[]): Promise<AppStatus | undefined> =>
+  (await fetchAppSnapshots(target, bundleIds))[0]?.versions[0];
+
+describe('fetchAppSnapshots', () => {
   it('appStoreState·phased·아이콘을 정규화한다', async () => {
     const versions = {
       data: [
@@ -31,10 +35,11 @@ describe('fetchAppStatuses', () => {
         { type: 'builds', id: 'b1', attributes: { iconAssetToken: { templateUrl: 'https://x/{w}x{h}.{f}' } } },
       ],
     };
-    const [status] = await fetchAppStatuses(client(appsRes, versions), ['com.x']);
+    const status = await firstVersion(client(appsRes, versions), ['com.x']);
     expect(status).toEqual({
       appId: 'APPID',
       name: '에이블리',
+      versionId: 'v1',
       version: '2.0.0',
       state: 'READY_FOR_SALE',
       iconUrl: 'https://x/340x340.png',
@@ -47,25 +52,55 @@ describe('fetchAppStatuses', () => {
     const versions = {
       data: [{ type: 'appStoreVersions', id: 'v1', attributes: { versionString: '2.0.0', createdDate: '2026-06-01T00:00:00Z', appVersionState: 'READY_FOR_DISTRIBUTION' }, relationships: {} }],
     };
-    const [status] = await fetchAppStatuses(client(appsRes, versions), ['com.x']);
+    const status = await firstVersion(client(appsRes, versions), ['com.x']);
     expect(status?.state).toBe('READY_FOR_SALE');
     expect(status?.phasedState).toBe('NOT_EXIST');
   });
 
-  it('가장 최근 생성 버전을 채택한다', async () => {
+  it('전체 버전을 최신 생성 순으로 반환한다', async () => {
     const versions = {
       data: [
         { type: 'appStoreVersions', id: 'old', attributes: { versionString: '1.0.0', createdDate: '2026-01-01T00:00:00Z', appStoreState: 'READY_FOR_SALE' }, relationships: {} },
         { type: 'appStoreVersions', id: 'new', attributes: { versionString: '2.0.0', createdDate: '2026-06-01T00:00:00Z', appStoreState: 'IN_REVIEW' }, relationships: {} },
       ],
     };
-    const [status] = await fetchAppStatuses(client(appsRes, versions), ['com.x']);
-    expect(status?.version).toBe('2.0.0');
-    expect(status?.state).toBe('IN_REVIEW');
+    const [snapshot] = await fetchAppSnapshots(client(appsRes, versions), ['com.x']);
+    expect(snapshot?.versions.map(item => [item.versionId, item.version, item.state])).toEqual([
+      ['new', '2.0.0', 'IN_REVIEW'],
+      ['old', '1.0.0', 'READY_FOR_SALE'],
+    ]);
+  });
+
+  it('버전마다 자기 phased release를 연결한다', async () => {
+    const versions = {
+      data: [
+        {
+          type: 'appStoreVersions',
+          id: 'new',
+          attributes: { versionString: '2.416.0', createdDate: '2026-11-04T00:00:00Z', appStoreState: 'WAITING_FOR_REVIEW' },
+          relationships: { appStoreVersionPhasedRelease: { data: { type: 'appStoreVersionPhasedReleases', id: 'p-new' } } },
+        },
+        {
+          type: 'appStoreVersions',
+          id: 'old',
+          attributes: { versionString: '2.415.0', createdDate: '2026-11-03T00:00:00Z', appStoreState: 'READY_FOR_SALE' },
+          relationships: { appStoreVersionPhasedRelease: { data: { type: 'appStoreVersionPhasedReleases', id: 'p-old' } } },
+        },
+      ],
+      included: [
+        { type: 'appStoreVersionPhasedReleases', id: 'p-new', attributes: { phasedReleaseState: 'INACTIVE', currentDayNumber: 0 } },
+        { type: 'appStoreVersionPhasedReleases', id: 'p-old', attributes: { phasedReleaseState: 'ACTIVE', currentDayNumber: 1 } },
+      ],
+    };
+    const [snapshot] = await fetchAppSnapshots(client(appsRes, versions), ['com.x']);
+    expect(snapshot?.versions.map(item => [item.version, item.phasedState, item.phasedCurrentDay])).toEqual([
+      ['2.416.0', 'INACTIVE', 0],
+      ['2.415.0', 'ACTIVE', 1],
+    ]);
   });
 
   it('앱을 못 찾으면 결과에서 제외한다', async () => {
-    const result = await fetchAppStatuses(client({ data: [] }, { data: [] }), ['com.x']);
+    const result = await fetchAppSnapshots(client({ data: [] }, { data: [] }), ['com.x']);
     expect(result).toEqual([]);
   });
 
@@ -74,7 +109,7 @@ describe('fetchAppStatuses', () => {
     const versions = {
       data: [{ type: 'appStoreVersions', id: 'v1', attributes: { versionString: '2.0.0', appStoreState: 'FUTURE_STATE' }, relationships: {} }],
     };
-    const result = await fetchAppStatuses(client(appsRes, versions), ['com.x']);
+    const result = await fetchAppSnapshots(client(appsRes, versions), ['com.x']);
     expect(result).toEqual([]);
     expect(warn).toHaveBeenCalledWith(expect.stringContaining('FUTURE_STATE'));
     warn.mockRestore();
@@ -84,12 +119,12 @@ describe('fetchAppStatuses', () => {
     const versions = {
       data: [{ type: 'appStoreVersions', id: 'v1', attributes: { versionString: '2.0.0', appStoreState: 'IN_REVIEW', appVersionState: 'READY_FOR_DISTRIBUTION' }, relationships: {} }],
     };
-    const [status] = await fetchAppStatuses(client(appsRes, versions), ['com.x']);
+    const status = await firstVersion(client(appsRes, versions), ['com.x']);
     expect(status?.state).toBe('IN_REVIEW');
   });
 
   it('앱은 있지만 버전이 하나도 없으면 제외한다', async () => {
-    const result = await fetchAppStatuses(client(appsRes, { data: [] }), ['com.x']);
+    const result = await fetchAppSnapshots(client(appsRes, { data: [] }), ['com.x']);
     expect(result).toEqual([]);
   });
 
@@ -97,7 +132,7 @@ describe('fetchAppStatuses', () => {
     const versions = {
       data: [{ type: 'appStoreVersions', id: 'v1', attributes: { versionString: '2.0.0', appStoreState: 'IN_REVIEW' }, relationships: {} }],
     };
-    const [status] = await fetchAppStatuses(client(appsRes, versions), ['com.x']);
+    const status = await firstVersion(client(appsRes, versions), ['com.x']);
     expect(status?.iconUrl).toBe('');
   });
 
@@ -115,7 +150,7 @@ describe('fetchAppStatuses', () => {
       included: [{ type: 'builds', id: 'b1', attributes: { version: '1157' } }],
       meta: { paging: { total: 563 } },
     };
-    await fetchAppStatuses(client(appsRes, versions), ['com.x'], true);
+    await fetchAppSnapshots(client(appsRes, versions), ['com.x'], true);
     const lines = log.mock.calls.map(call => String(call[0]));
     expect(lines.some(line => line.includes('버전 1개 조회 (총 563)'))).toBe(true);
     expect(

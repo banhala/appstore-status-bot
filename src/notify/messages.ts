@@ -1,4 +1,4 @@
-import type { AppStatus, VersionState } from '../state/types.js';
+import type { AppStatus, Notice, VersionState } from '../state/types.js';
 
 // 상태 변화 알림 문구 (한국어)
 const STATE_MESSAGE: Record<VersionState, string> = {
@@ -108,13 +108,34 @@ const phasedMessage = (app: AppStatus): string => {
 const stateMessage = (app: AppStatus): string =>
   app.state === 'READY_FOR_SALE' ? phasedMessage(app) : STATE_MESSAGE[app.state];
 
-/** 멘션 프리픽스 + "애플 심사 상태: {문구}" 헤드라인 */
-export const buildHeadline = (app: AppStatus, mentionGroupIds: string[]): string => {
+const supersededMessage = (app: AppStatus, next: AppStatus): string => {
+  const progress =
+    app.phasedState === 'PAUSED'
+      ? '점진적 배포 중단 상태'
+      : `마지막 진행율 ${PHASED_PERCENT[app.phasedCurrentDay] ?? '알 수 없음'}`;
+  return `점진적 배포를 100%로 전환하지 않은 상태에서 ${next.version} 출시가 시작되었습니다. (${progress})`;
+};
+
+const withPrefix = (mentionGroupIds: string[], body: string): string => {
   const mentions = mentionGroupIds.map(id => `<!subteam^${id}>`).join(' ');
-  const body = stateMessage(app);
   return mentions === '' ? `애플 심사 상태: ${body}` : `${mentions} 애플 심사 상태: ${body}`;
 };
+
+/** 멘션 프리픽스 + "애플 심사 상태: {문구}" 헤드라인 */
+export const buildHeadline = (app: AppStatus, mentionGroupIds: string[]): string =>
+  withPrefix(mentionGroupIds, stateMessage(app));
+
+export const buildNoticeHeadline = (notice: Notice, mentionGroupIds: string[]): string =>
+  notice.kind === 'status'
+    ? buildHeadline(notice.app, mentionGroupIds)
+    : withPrefix(mentionGroupIds, supersededMessage(notice.app, notice.next));
 
 export const stateLabel = (state: VersionState): string => STATE_LABEL[state];
 
 export const stateColor = (state: VersionState): string => STATE_COLOR[state];
+
+export const noticeLabel = (notice: Notice): string =>
+  notice.kind === 'status' ? stateLabel(notice.app.state) : '점진적 배포 미완료';
+
+export const noticeColor = (notice: Notice): string =>
+  notice.kind === 'status' ? stateColor(notice.app.state) : WARNING;

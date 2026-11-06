@@ -1,5 +1,5 @@
 import type { AscClient } from './client.js';
-import type { AppStatus, PhasedState, VersionState } from '../state/types.js';
+import type { AppSnapshot, AppStatus, PhasedState, VersionState } from '../state/types.js';
 import { isPhasedState, isVersionState } from '../state/types.js';
 
 // JSON:API 최소 타입
@@ -98,7 +98,7 @@ const fetchOne = async (
   client: AscClient,
   bundleId: string,
   summary: boolean,
-): Promise<AppStatus | undefined> => {
+): Promise<AppSnapshot | undefined> => {
   const apps = await client.get<AppsResponse>('/v1/apps', { 'filter[bundleId]': bundleId });
   const app = apps.data[0];
   if (app === undefined) {
@@ -135,18 +135,29 @@ const fetchOne = async (
     })
     .filter((entry): entry is { version: Resource; state: VersionState } => entry.state !== undefined);
 
-  // 최신 생성 버전을 report 대상으로 채택. 정상 릴리즈 플로우에선 in-flight 버전이 곧 최신.
-  // ⚠️ 알려진 한계: 핫픽스가 이전 버전 phased rollout 중에 진행되면 핫픽스(최신)만 추적.
-  const primary = candidates[0];
-  if (primary === undefined) {
+  if (candidates.length === 0) {
     console.warn(`[ASC] ${bundleId}: iOS App Store 버전이 하나도 없음 — 건너뜀`);
     return undefined;
   }
 
-  const { version, state } = primary;
+  return {
+    appId: app.id,
+    name,
+    versions: candidates.map(({ version, state }) =>
+      toAppStatus(app.id, name, version, state, versions.included),
+    ),
+  };
+};
 
+const toAppStatus = (
+  appId: string,
+  name: string,
+  version: Resource,
+  state: VersionState,
+  included: Resource[] | undefined,
+): AppStatus => {
   const phased = resolveIncluded(
-    versions.included,
+    included,
     version.relationships?.['appStoreVersionPhasedRelease']?.data,
   );
   const phasedRaw = asString(phased?.attributes?.['phasedReleaseState']);
@@ -154,11 +165,12 @@ const fetchOne = async (
     phasedRaw !== undefined && isPhasedState(phasedRaw) ? phasedRaw : 'NOT_EXIST';
   const phasedCurrentDay = asNumber(phased?.attributes?.['currentDayNumber']) ?? 0;
 
-  const build = resolveIncluded(versions.included, version.relationships?.['build']?.data);
+  const build = resolveIncluded(included, version.relationships?.['build']?.data);
 
   return {
-    appId: app.id,
+    appId,
     name,
+    versionId: version.id,
     version: asString(version.attributes?.['versionString']) ?? '',
     state,
     iconUrl: buildIconUrl(build),
@@ -167,17 +179,17 @@ const fetchOne = async (
   };
 };
 
-/** 번들 ID별 현재 App Store 상태 조회·정규화 */
-export const fetchAppStatuses = async (
+/** 번들 ID별 App Store 버전 상태 조회·정규화 */
+export const fetchAppSnapshots = async (
   client: AscClient,
   bundleIds: string[],
   summary = true,
-): Promise<AppStatus[]> => {
-  const results: AppStatus[] = [];
+): Promise<AppSnapshot[]> => {
+  const results: AppSnapshot[] = [];
   for (const bundleId of bundleIds) {
-    const status = await fetchOne(client, bundleId, summary);
-    if (status !== undefined) {
-      results.push(status);
+    const snapshot = await fetchOne(client, bundleId, summary);
+    if (snapshot !== undefined) {
+      results.push(snapshot);
     }
   }
   return results;
