@@ -69,12 +69,20 @@ describe('messages', () => {
   });
 
   it('phased COMPLETE/PAUSED는 전용 문구를 쓴다', () => {
-    expect(buildHeadline(app({ state: 'READY_FOR_SALE', phasedState: 'COMPLETE' }), [])).toContain(
-      '점진적 배포가 완료',
+    expect(buildHeadline(app({ state: 'READY_FOR_SALE', phasedState: 'COMPLETE', phasedCurrentDay: 7 }), [])).toBe(
+      '애플 심사 상태: 점진적 배포가 완료되었습니다. (배포 진행율 100%)',
     );
     expect(buildHeadline(app({ state: 'READY_FOR_SALE', phasedState: 'PAUSED' }), [])).toContain(
       '점진적 배포가 중단',
     );
+  });
+
+  it('7일차 전에 COMPLETE면 전체 출시 전환에 의한 완료로 알린다', () => {
+    for (const day of [0, 3, 6]) {
+      expect(buildHeadline(app({ state: 'READY_FOR_SALE', phasedState: 'COMPLETE', phasedCurrentDay: day }), [])).toBe(
+        '애플 심사 상태: 점진적 배포가 전체 출시 전환에 의해 완료되었습니다. (배포 진행율 100%)',
+      );
+    }
   });
 
   it('READY_FOR_SALE가 아니면 phased 값이 있어도 상태 문구를 쓴다', () => {
@@ -119,5 +127,31 @@ describe('notice messages', () => {
   it('PAUSED 상태로 밀려나면 중단 상태로 표기한다', () => {
     const text = buildNoticeHeadline(superseded({ phasedState: 'PAUSED', phasedCurrentDay: 3 }), []);
     expect(text).toContain('(점진적 배포 중단 상태)');
+  });
+
+  it('다음 버전 출시로 7일차 전에 끝난 버전은 그 출시에 의한 종료와 마지막 진행율을 알린다', () => {
+    const notice: Notice = {
+      kind: 'ended',
+      app: app({ version: '2.400.0', state: 'READY_FOR_SALE', phasedState: 'COMPLETE', phasedCurrentDay: 2 }),
+      next,
+      prev,
+    };
+    expect(buildNoticeHeadline(notice, ['G1'])).toBe(
+      '<!subteam^G1> 애플 심사 상태: 점진적 배포가 2.401.0 출시에 의해 종료되었습니다. (배포 진행율 2%)',
+    );
+    expect(noticeLabel(notice)).toBe(stateLabel('READY_FOR_SALE'));
+    expect(noticeColor(notice)).toBe(stateColor('READY_FOR_SALE'));
+  });
+
+  it('종료 일차를 알 수 없으면 진행율을 알 수 없음으로 표기한다', () => {
+    const notice: Notice = {
+      kind: 'ended',
+      app: app({ version: '2.400.0', state: 'READY_FOR_SALE', phasedState: 'COMPLETE', phasedCurrentDay: 0 }),
+      next,
+      prev,
+    };
+    expect(buildNoticeHeadline(notice, [])).toBe(
+      '애플 심사 상태: 점진적 배포가 2.401.0 출시에 의해 종료되었습니다. (배포 진행율 알 수 없음)',
+    );
   });
 });

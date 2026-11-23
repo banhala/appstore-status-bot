@@ -66,7 +66,8 @@ export type LegacyStoredAppEntry = StoredVersionEntry;
 
 export type Notice =
   | { kind: 'status'; app: AppStatus; prev?: StoredVersionEntry }
-  | { kind: 'superseded'; app: AppStatus; next: AppStatus; prev: StoredVersionEntry };
+  | { kind: 'superseded'; app: AppStatus; next: AppStatus; prev: StoredVersionEntry }
+  | { kind: 'ended'; app: AppStatus; next: AppStatus; prev: StoredVersionEntry };
 
 export interface StoredState {
   apps: Record<string, StoredAppEntry | LegacyStoredAppEntry>;

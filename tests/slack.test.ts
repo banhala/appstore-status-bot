@@ -77,6 +77,25 @@ describe('createSlackNotifier', () => {
     expect(body.attachments[0]?.color).toBe('#f4f124');
   });
 
+  it('ended 알림은 종료된 버전 기준으로 기존 상태 라벨과 색상 카드를 쓴다', async () => {
+    vi.spyOn(console, 'log').mockImplementation(() => {});
+    const slack = stubSlack();
+    const notice: Notice = {
+      kind: 'ended',
+      app: app({ versionId: 'v0', version: '2.415.0', state: 'READY_FOR_SALE', phasedState: 'COMPLETE', phasedCurrentDay: 2 }),
+      next: app({ state: 'READY_FOR_SALE', phasedState: 'ACTIVE', phasedCurrentDay: 1 }),
+      prev: { version: '2.415.0', state: 'READY_FOR_SALE', phasedState: 'ACTIVE', phasedCurrentDay: 2 },
+    };
+    await notifier().notify(notice);
+    const body = slack.body();
+    expect(body.text).toBe('<!subteam^G1> 애플 심사 상태: 점진적 배포가 2.416.0 출시에 의해 종료되었습니다. (배포 진행율 2%)');
+    expect(body.attachments[0]?.fields).toEqual([
+      { title: '버전', value: '2.415.0', short: true },
+      { title: '상태', value: '판매 준비됨', short: true },
+    ]);
+    expect(body.attachments[0]?.color).toBe('#14ba40');
+  });
+
   it('Slack이 ok:false를 돌려주면 예외를 던진다', async () => {
     stubSlack({ ok: false, error: 'not_in_channel' });
     await expect(notifier().notify(statusNotice)).rejects.toThrow(/not_in_channel/);

@@ -90,7 +90,9 @@ const PHASED_PERCENT: Record<number, string | undefined> = {
 
 const phasedMessage = (app: AppStatus): string => {
   if (app.phasedState === 'COMPLETE') {
-    return '점진적 배포가 완료되었습니다. (배포 진행율 100%)';
+    return app.phasedCurrentDay >= 7
+      ? '점진적 배포가 완료되었습니다. (배포 진행율 100%)'
+      : '점진적 배포가 전체 출시 전환에 의해 완료되었습니다. (배포 진행율 100%)';
   }
   if (app.phasedState === 'PAUSED') {
     return '점진적 배포가 중단되었습니다.';
@@ -116,6 +118,9 @@ const supersededMessage = (app: AppStatus, next: AppStatus): string => {
   return `점진적 배포를 100%로 전환하지 않은 상태에서 ${next.version} 출시가 시작되었습니다. (${progress})`;
 };
 
+const endedMessage = (app: AppStatus, next: AppStatus): string =>
+  `점진적 배포가 ${next.version} 출시에 의해 종료되었습니다. (배포 진행율 ${PHASED_PERCENT[app.phasedCurrentDay] ?? '알 수 없음'})`;
+
 const withPrefix = (mentionGroupIds: string[], body: string): string => {
   const mentions = mentionGroupIds.map(id => `<!subteam^${id}>`).join(' ');
   return mentions === '' ? `애플 심사 상태: ${body}` : `${mentions} 애플 심사 상태: ${body}`;
@@ -125,17 +130,23 @@ const withPrefix = (mentionGroupIds: string[], body: string): string => {
 export const buildHeadline = (app: AppStatus, mentionGroupIds: string[]): string =>
   withPrefix(mentionGroupIds, stateMessage(app));
 
-export const buildNoticeHeadline = (notice: Notice, mentionGroupIds: string[]): string =>
-  notice.kind === 'status'
-    ? buildHeadline(notice.app, mentionGroupIds)
-    : withPrefix(mentionGroupIds, supersededMessage(notice.app, notice.next));
+export const buildNoticeHeadline = (notice: Notice, mentionGroupIds: string[]): string => {
+  switch (notice.kind) {
+    case 'status':
+      return buildHeadline(notice.app, mentionGroupIds);
+    case 'superseded':
+      return withPrefix(mentionGroupIds, supersededMessage(notice.app, notice.next));
+    case 'ended':
+      return withPrefix(mentionGroupIds, endedMessage(notice.app, notice.next));
+  }
+};
 
 export const stateLabel = (state: VersionState): string => STATE_LABEL[state];
 
 export const stateColor = (state: VersionState): string => STATE_COLOR[state];
 
 export const noticeLabel = (notice: Notice): string =>
-  notice.kind === 'status' ? stateLabel(notice.app.state) : '점진적 배포 미완료';
+  notice.kind === 'superseded' ? '점진적 배포 미완료' : stateLabel(notice.app.state);
 
 export const noticeColor = (notice: Notice): string =>
-  notice.kind === 'status' ? stateColor(notice.app.state) : WARNING;
+  notice.kind === 'superseded' ? WARNING : stateColor(notice.app.state);
