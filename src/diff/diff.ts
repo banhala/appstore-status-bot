@@ -25,6 +25,9 @@ const FULL_ROLLOUT_DAY = 7; // phased release 7일차부터 100% 노출, message
 const rolloutIncomplete = (app: AppStatus): boolean =>
   ROLLING.includes(app.phasedState) && app.phasedCurrentDay < FULL_ROLLOUT_DAY;
 
+const endedEarly = (app: AppStatus): boolean =>
+  app.phasedState === 'COMPLETE' && app.phasedCurrentDay < FULL_ROLLOUT_DAY;
+
 const toEntry = (app: AppStatus): StoredVersionEntry => ({
   version: app.version,
   state: app.state,
@@ -107,7 +110,11 @@ export const diffStatuses = (snapshots: AppSnapshot[], stored: StoredState): Dif
         continue;
       }
       if (stageChanged(app, prev)) {
-        notices.push({ kind: 'status', app, prev });
+        notices.push(
+          endedEarly(app) && anchor !== undefined
+            ? { kind: 'ended', app, next: anchor, prev }
+            : { kind: 'status', app, prev },
+        );
       }
       if (rolloutIncomplete(app) && anchor !== undefined) {
         notices.push({ kind: 'superseded', app, next: anchor, prev });

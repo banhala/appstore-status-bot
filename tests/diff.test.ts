@@ -59,7 +59,7 @@ const summarize = (notices: Notice[]): string[] =>
   notices.map(notice =>
     notice.kind === 'status'
       ? `${notice.app.version} ${notice.app.state}/${notice.app.phasedState}`
-      : `${notice.app.version} superseded by ${notice.next.version}`,
+      : `${notice.app.version} ${notice.kind} by ${notice.next.version}`,
   );
 
 const storedVersions = (apps: StoredState['apps']): string[] => {
@@ -232,7 +232,7 @@ describe('diffStatuses 버전 단위 추적', () => {
     ]);
   });
 
-  it('한 폴링 간격 안에 이전 버전 100% 전환과 다음 버전 출시가 함께 일어나면 완료로 알린다', () => {
+  it('다음 버전 출시와 함께 이전 버전이 7일차 전에 COMPLETE가 되면 완료가 아니라 종료로 알린다', () => {
     const prev = [
       v('2.401.0', 'PENDING_DEVELOPER_RELEASE', 'INACTIVE', 0),
       v('2.400.0', 'READY_FOR_SALE', 'ACTIVE', 2),
@@ -243,9 +243,39 @@ describe('diffStatuses 버전 단위 추적', () => {
     );
     const result = diffStatuses([current], stored({ '1': appEntry(...prev) }));
     expect(summarize(result.notices)).toEqual([
+      '2.400.0 ended by 2.401.0',
+      '2.401.0 READY_FOR_SALE/ACTIVE',
+    ]);
+    expect(storedVersions(result.nextApps)).toEqual(['2.401.0']);
+  });
+
+  it('다음 버전 출시와 함께 이전 버전이 7일차에 COMPLETE가 되면 완료로 알린다', () => {
+    const prev = [
+      v('2.401.0', 'PENDING_DEVELOPER_RELEASE', 'INACTIVE', 0),
+      v('2.400.0', 'READY_FOR_SALE', 'ACTIVE', 7),
+    ];
+    const current = snapshot(
+      v('2.401.0', 'READY_FOR_SALE', 'ACTIVE', 1),
+      v('2.400.0', 'READY_FOR_SALE', 'COMPLETE', 7),
+    );
+    const result = diffStatuses([current], stored({ '1': appEntry(...prev) }));
+    expect(summarize(result.notices)).toEqual([
       '2.400.0 READY_FOR_SALE/COMPLETE',
       '2.401.0 READY_FOR_SALE/ACTIVE',
     ]);
+  });
+
+  it('출시 버전을 7일차 전에 수동으로 전체 출시하면 완료로 알린다', () => {
+    const prev = [
+      v('2.401.0', 'IN_REVIEW', 'INACTIVE', 0),
+      v('2.400.0', 'READY_FOR_SALE', 'ACTIVE', 3),
+    ];
+    const current = snapshot(
+      v('2.401.0', 'IN_REVIEW', 'INACTIVE', 0),
+      v('2.400.0', 'READY_FOR_SALE', 'COMPLETE', 3),
+    );
+    const result = diffStatuses([current], stored({ '1': appEntry(...prev) }));
+    expect(summarize(result.notices)).toEqual(['2.400.0 READY_FOR_SALE/COMPLETE']);
   });
 
   it('다음 버전이 거부되면 이전 버전을 계속 추적한다', () => {
